@@ -1,0 +1,1071 @@
+{
+	"info": {
+		"_postman_id": "robogig-component-creation",
+		"name": "RoboGig - Component & Project Creation",
+		"description": "Complete collection for creating components with images and obstacle avoidance robot project",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{adminToken}}",
+				"type": "string"
+			}
+		]
+	},
+	"item": [
+		{
+			"name": "0. Auth - Login as Admin",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"const response = pm.response.json();",
+							"if (response.success && response.data.accessToken) {",
+							"    pm.collectionVariables.set('adminToken', response.data.accessToken);",
+							"    console.log('✅ Admin token saved');",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"email\": \"admin@robogig.com\",\n  \"password\": \"Admin@123\"\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/auth/login",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "auth", "login"]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "1. Create Component - Arduino Uno R3",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"const response = pm.response.json();",
+							"if (response.success && response.data.component) {",
+							"    pm.collectionVariables.set('arduinoId', response.data.component.id);",
+							"    console.log('✅ Arduino ID saved:', response.data.component.id);",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "images",
+							"type": "file",
+							"src": [],
+							"description": "Upload 1-5 images of Arduino Uno R3"
+						},
+						{
+							"key": "thumbnail",
+							"type": "file",
+							"src": [],
+							"description": "Thumbnail image (optional)"
+						},
+						{
+							"key": "name",
+							"value": "Arduino Uno R3",
+							"type": "text"
+						},
+						{
+							"key": "sku",
+							"value": "ARD-UNO-R3",
+							"type": "text"
+						},
+						{
+							"key": "description",
+							"value": "Arduino Uno R3 microcontroller board based on ATmega328P. 14 digital I/O pins, 6 analog inputs, 16 MHz quartz crystal, USB connection.",
+							"type": "text"
+						},
+						{
+							"key": "typicalUseCase",
+							"value": "Main controller for robotics and IoT projects",
+							"type": "text"
+						},
+						{
+							"key": "unitPriceCents",
+							"value": "31000",
+							"type": "text",
+							"description": "₹310"
+						},
+						{
+							"key": "stockQuantity",
+							"value": "50",
+							"type": "text"
+						},
+						{
+							"key": "isActive",
+							"value": "true",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/components/upload",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "components", "upload"]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "2. Create Component - Chassis",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"const response = pm.response.json();",
+							"if (response.success && response.data.component) {",
+							"    pm.collectionVariables.set('chassisId', response.data.component.id);",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "images",
+							"type": "file",
+							"src": []
+						},
+						{
+							"key": "name",
+							"value": "Robot Chassis",
+							"type": "text"
+						},
+						{
+							"key": "sku",
+							"value": "CHASSIS-2WD",
+							"type": "text"
+						},
+						{
+							"key": "description",
+							"value": "2WD robot chassis platform with mounting holes for motors and components",
+							"type": "text"
+						},
+						{
+							"key": "unitPriceCents",
+							"value": "7000",
+							"type": "text",
+							"description": "₹70"
+						},
+						{
+							"key": "stockQuantity",
+							"value": "30",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/components/upload",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "components", "upload"]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "3. Create Component - Motor and Wheel Set",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"const response = pm.response.json();",
+							"if (response.success && response.data.component) {",
+							"    pm.collectionVariables.set('motorWheelId', response.data.component.id);",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "images",
+							"type": "file",
+							"src": []
+						},
+						{
+							"key": "name",
+							"value": "Motor and Wheel Set",
+							"type": "text"
+						},
+						{
+							"key": "sku",
+							"value": "MOTOR-WHEEL-SET",
+							"type": "text"
+						},
+						{
+							"key": "description",
+							"value": "DC geared motor with wheel. Set includes motor (₹40) and wheel (₹15). Price for 1 set.",
+							"type": "text"
+						},
+						{
+							"key": "typicalUseCase",
+							"value": "Robot movement and locomotion",
+							"type": "text"
+						},
+						{
+							"key": "unitPriceCents",
+							"value": "5500",
+							"type": "text",
+							"description": "₹55 per set (motor ₹40 + wheel ₹15)"
+						},
+						{
+							"key": "stockQuantity",
+							"value": "100",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/components/upload",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "components", "upload"]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "4. Create Component - L298N Motor Driver",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"const response = pm.response.json();",
+							"if (response.success && response.data.component) {",
+							"    pm.collectionVariables.set('motorDriverId', response.data.component.id);",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "images",
+							"type": "file",
+							"src": []
+						},
+						{
+							"key": "name",
+							"value": "L298N Motor Driver",
+							"type": "text"
+						},
+						{
+							"key": "sku",
+							"value": "L298N-DRIVER",
+							"type": "text"
+						},
+						{
+							"key": "description",
+							"value": "Dual H-bridge motor driver module. Controls 2 DC motors or 1 stepper motor. Max 2A per channel.",
+							"type": "text"
+						},
+						{
+							"key": "typicalUseCase",
+							"value": "Motor control for robots",
+							"type": "text"
+						},
+						{
+							"key": "unitPriceCents",
+							"value": "9800",
+							"type": "text",
+							"description": "₹98"
+						},
+						{
+							"key": "stockQuantity",
+							"value": "40",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/components/upload",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "components", "upload"]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "5. Create Component - Ultrasonic Sensor",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"const response = pm.response.json();",
+							"if (response.success && response.data.component) {",
+							"    pm.collectionVariables.set('ultrasonicId', response.data.component.id);",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "images",
+							"type": "file",
+							"src": []
+						},
+						{
+							"key": "name",
+							"value": "HC-SR04 Ultrasonic Sensor",
+							"type": "text"
+						},
+						{
+							"key": "sku",
+							"value": "HC-SR04",
+							"type": "text"
+						},
+						{
+							"key": "description",
+							"value": "Ultrasonic distance sensor. Range: 2cm to 400cm. Accuracy: 3mm.",
+							"type": "text"
+						},
+						{
+							"key": "typicalUseCase",
+							"value": "Obstacle detection and distance measurement",
+							"type": "text"
+						},
+						{
+							"key": "unitPriceCents",
+							"value": "7000",
+							"type": "text",
+							"description": "₹70"
+						},
+						{
+							"key": "stockQuantity",
+							"value": "60",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/components/upload",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "components", "upload"]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "6. Create Component - Ultrasonic Holder",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"const response = pm.response.json();",
+							"if (response.success && response.data.component) {",
+							"    pm.collectionVariables.set('holderId', response.data.component.id);",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "images",
+							"type": "file",
+							"src": []
+						},
+						{
+							"key": "name",
+							"value": "Ultrasonic Sensor Holder (Yellow)",
+							"type": "text"
+						},
+						{
+							"key": "sku",
+							"value": "US-HOLDER-YLW",
+							"type": "text"
+						},
+						{
+							"key": "description",
+							"value": "Mounting bracket for HC-SR04 ultrasonic sensor",
+							"type": "text"
+						},
+						{
+							"key": "unitPriceCents",
+							"value": "1500",
+							"type": "text",
+							"description": "₹15"
+						},
+						{
+							"key": "stockQuantity",
+							"value": "50",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/components/upload",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "components", "upload"]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "7. Create Component - Servo Motor",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"const response = pm.response.json();",
+							"if (response.success && response.data.component) {",
+							"    pm.collectionVariables.set('servoId', response.data.component.id);",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "images",
+							"type": "file",
+							"src": []
+						},
+						{
+							"key": "name",
+							"value": "SG90 Servo Motor",
+							"type": "text"
+						},
+						{
+							"key": "sku",
+							"value": "SG90-SERVO",
+							"type": "text"
+						},
+						{
+							"key": "description",
+							"value": "9g micro servo motor. 180° rotation. Torque: 1.8 kg/cm.",
+							"type": "text"
+						},
+						{
+							"key": "typicalUseCase",
+							"value": "Sensor mounting and positioning",
+							"type": "text"
+						},
+						{
+							"key": "unitPriceCents",
+							"value": "6500",
+							"type": "text",
+							"description": "₹65"
+						},
+						{
+							"key": "stockQuantity",
+							"value": "70",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/components/upload",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "components", "upload"]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "8. Create Component - Jumper Wires Set",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"const response = pm.response.json();",
+							"if (response.success && response.data.component) {",
+							"    pm.collectionVariables.set('jumpersId', response.data.component.id);",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "images",
+							"type": "file",
+							"src": []
+						},
+						{
+							"key": "name",
+							"value": "Jumper Wires Set (M-M, M-F, F-F)",
+							"type": "text"
+						},
+						{
+							"key": "sku",
+							"value": "JUMPER-SET",
+							"type": "text"
+						},
+						{
+							"key": "description",
+							"value": "Pack of Male-to-Male, Male-to-Female, and Female-to-Female jumper wires. 40 pieces each type.",
+							"type": "text"
+						},
+						{
+							"key": "typicalUseCase",
+							"value": "Circuit connections and prototyping",
+							"type": "text"
+						},
+						{
+							"key": "unitPriceCents",
+							"value": "4000",
+							"type": "text",
+							"description": "₹40"
+						},
+						{
+							"key": "stockQuantity",
+							"value": "80",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/components/upload",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "components", "upload"]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "9. Create Component - HC-05 Bluetooth",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"const response = pm.response.json();",
+							"if (response.success && response.data.component) {",
+							"    pm.collectionVariables.set('bluetoothId', response.data.component.id);",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "images",
+							"type": "file",
+							"src": []
+						},
+						{
+							"key": "name",
+							"value": "HC-05 Bluetooth Module",
+							"type": "text"
+						},
+						{
+							"key": "sku",
+							"value": "HC-05-BT",
+							"type": "text"
+						},
+						{
+							"key": "description",
+							"value": "Bluetooth wireless communication module. SPP protocol. Range: 10m.",
+							"type": "text"
+						},
+						{
+							"key": "typicalUseCase",
+							"value": "Wireless control and communication",
+							"type": "text"
+						},
+						{
+							"key": "unitPriceCents",
+							"value": "25000",
+							"type": "text",
+							"description": "₹250"
+						},
+						{
+							"key": "stockQuantity",
+							"value": "35",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/components/upload",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "components", "upload"]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "10. Create Component - Screws and Nuts",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"const response = pm.response.json();",
+							"if (response.success && response.data.component) {",
+							"    pm.collectionVariables.set('screwsId', response.data.component.id);",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "images",
+							"type": "file",
+							"src": []
+						},
+						{
+							"key": "name",
+							"value": "Screws and Nuts Set",
+							"type": "text"
+						},
+						{
+							"key": "sku",
+							"value": "SCREWS-NUTS-SET",
+							"type": "text"
+						},
+						{
+							"key": "description",
+							"value": "Assorted M3 screws and nuts for robot assembly. 50 pieces.",
+							"type": "text"
+						},
+						{
+							"key": "unitPriceCents",
+							"value": "3000",
+							"type": "text",
+							"description": "₹30"
+						},
+						{
+							"key": "stockQuantity",
+							"value": "90",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/components/upload",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "components", "upload"]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "11. Create Component - 3S Battery",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"const response = pm.response.json();",
+							"if (response.success && response.data.component) {",
+							"    pm.collectionVariables.set('batteryId', response.data.component.id);",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "images",
+							"type": "file",
+							"src": []
+						},
+						{
+							"key": "name",
+							"value": "11.1V 3S LiPo Battery",
+							"type": "text"
+						},
+						{
+							"key": "sku",
+							"value": "LIPO-3S-2200",
+							"type": "text"
+						},
+						{
+							"key": "description",
+							"value": "11.1V 2200mAh 3S LiPo battery for robots. Includes JST connector.",
+							"type": "text"
+						},
+						{
+							"key": "typicalUseCase",
+							"value": "Power supply for robots",
+							"type": "text"
+						},
+						{
+							"key": "unitPriceCents",
+							"value": "41000",
+							"type": "text",
+							"description": "₹410"
+						},
+						{
+							"key": "stockQuantity",
+							"value": "25",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/components/upload",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "components", "upload"]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "12. Create Component - 12V Adapter",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"const response = pm.response.json();",
+							"if (response.success && response.data.component) {",
+							"    pm.collectionVariables.set('adapterId', response.data.component.id);",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "images",
+							"type": "file",
+							"src": []
+						},
+						{
+							"key": "name",
+							"value": "12V 3S Battery Charger Adapter",
+							"type": "text"
+						},
+						{
+							"key": "sku",
+							"value": "CHARGER-3S-12V",
+							"type": "text"
+						},
+						{
+							"key": "description",
+							"value": "12V adapter for charging 3S LiPo batteries. Auto-cutoff protection.",
+							"type": "text"
+						},
+						{
+							"key": "unitPriceCents",
+							"value": "7500",
+							"type": "text",
+							"description": "₹75"
+						},
+						{
+							"key": "stockQuantity",
+							"value": "30",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/components/upload",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "components", "upload"]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "13. Create Project - Obstacle Avoidance Robot",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "images",
+							"type": "file",
+							"src": [],
+							"description": "Add 3-5 project images"
+						},
+						{
+							"key": "pdfs",
+							"type": "file",
+							"src": [],
+							"description": "Add documentation PDFs"
+						},
+						{
+							"key": "thumbnail",
+							"type": "file",
+							"src": [],
+							"description": "YouTube thumbnail or project image"
+						},
+						{
+							"key": "title",
+							"value": "Obstacle Avoidance Self-Driving Robot",
+							"type": "text"
+						},
+						{
+							"key": "category",
+							"value": "ROBOTICS",
+							"type": "text"
+						},
+						{
+							"key": "description",
+							"value": "Build an autonomous obstacle avoidance robot using Arduino and ultrasonic sensor. The robot uses HC-SR04 sensor mounted on a servo motor to scan the environment 180°, detects obstacles, and navigates around them automatically. Features Bluetooth control via smartphone app using HC-05 module. Perfect beginner-intermediate robotics project to learn about sensors, motor control, servo positioning, and wireless communication. Includes detailed assembly guide, circuit diagrams, and Arduino code.",
+							"type": "text"
+						},
+						{
+							"key": "summary",
+							"value": "Autonomous robot that detects and avoids obstacles using ultrasonic sensor and servo scanning",
+							"type": "text"
+						},
+						{
+							"key": "difficulty",
+							"value": "INTERMEDIATE",
+							"type": "text"
+						},
+						{
+							"key": "tags",
+							"value": "[\"arduino\", \"robotics\", \"obstacle avoidance\", \"ultrasonic sensor\", \"bluetooth\", \"autonomous\", \"beginner friendly\"]",
+							"type": "text"
+						},
+						{
+							"key": "prerequisites",
+							"value": "[\"Basic Arduino programming\", \"Understanding of DC motors\", \"Soldering skills (basic)\", \"Arduino IDE installed\", \"Bluetooth terminal app on smartphone\"]",
+							"type": "text"
+						},
+						{
+							"key": "learningOutcomes",
+							"value": "[\"Ultrasonic sensor interfacing and distance measurement\", \"Servo motor control and positioning\", \"L298N motor driver operation\", \"Autonomous navigation algorithms\", \"Bluetooth communication with HC-05\", \"PWM motor speed control\", \"Arduino programming for robotics\", \"Circuit design and troubleshooting\"]",
+							"type": "text"
+						},
+						{
+							"key": "estimatedCostCents",
+							"value": "166800",
+							"type": "text",
+							"description": "₹1,668 (sum of all components)"
+						},
+						{
+							"key": "estimatedBuildTimeMinutes",
+							"value": "300",
+							"type": "text",
+							"description": "5 hours"
+						},
+						{
+							"key": "youtubeUrl",
+							"value": "https://www.youtube.com/watch?v=YOUR_VIDEO_ID",
+							"type": "text",
+							"description": "Replace with your actual YouTube URL"
+						},
+						{
+							"key": "externalLinks",
+							"value": "[{\"title\": \"Step-by-Step Assembly Guide\", \"url\": \"https://notion.so/your-guide-link\"}, {\"title\": \"Arduino Code Repository\", \"url\": \"https://github.com/your-repo\"}, {\"title\": \"Bluetooth App Setup\", \"url\": \"https://notion.so/app-setup\"}]",
+							"type": "text",
+							"description": "Update URLs with your actual Notion docs"
+						},
+						{
+							"key": "componentIds",
+							"value": "[\"{{arduinoId}}\", \"{{chassisId}}\", \"{{motorWheelId}}\", \"{{motorDriverId}}\", \"{{ultrasonicId}}\", \"{{holderId}}\", \"{{servoId}}\", \"{{jumpersId}}\", \"{{bluetoothId}}\", \"{{screwsId}}\", \"{{batteryId}}\", \"{{adapterId}}\"]",
+							"type": "text",
+							"description": "Component IDs auto-filled from previous requests"
+						},
+						{
+							"key": "isFeatured",
+							"value": "true",
+							"type": "text"
+						},
+						{
+							"key": "isPublic",
+							"value": "true",
+							"type": "text"
+						},
+						{
+							"key": "preBuiltAvailable",
+							"value": "true",
+							"type": "text"
+						},
+						{
+							"key": "preBuiltStock",
+							"value": "10",
+							"type": "text"
+						},
+						{
+							"key": "preBuiltPriceCents",
+							"value": "299900",
+							"type": "text",
+							"description": "₹2,999 (pre-built price)"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/projects/upload",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "projects", "upload"]
+				},
+				"description": "Creates the Obstacle Avoidance Robot project with all 12 components"
+			},
+			"response": []
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:4000",
+			"type": "string"
+		},
+		{
+			"key": "adminToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "arduinoId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "chassisId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "motorWheelId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "motorDriverId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "ultrasonicId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "holderId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "servoId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "jumpersId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "bluetoothId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "screwsId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "batteryId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "adapterId",
+			"value": "",
+			"type": "string"
+		}
+	]
+}

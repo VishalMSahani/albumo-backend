@@ -1,0 +1,869 @@
+{
+  "info": {
+    "name": "BuildWise - Components & Admin API",
+    "description": "API collection for testing Components (Product Catalog) and Admin Management endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "buildwise-team"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:4000",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refreshToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "componentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "adminEmail",
+      "value": "kingofmonster7@gmail.com",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Signup",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('accessToken', response.data.accessToken);",
+                  "    pm.collectionVariables.set('refreshToken', response.data.refreshToken);",
+                  "    pm.test('Signup successful', () => {",
+                  "        pm.expect(response.success).to.be.true;",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"testuser@example.com\",\n  \"password\": \"SecurePass123!\",\n  \"name\": \"Test User\",\n  \"college\": \"MIT\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/signup",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "signup"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('accessToken', response.data.accessToken);",
+                  "    pm.collectionVariables.set('refreshToken', response.data.refreshToken);",
+                  "    pm.test('Login successful', () => {",
+                  "        pm.expect(response.success).to.be.true;",
+                  "        pm.expect(response.data.user.role).to.exist;",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"Monster75!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Login with admin credentials to get access token"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Get user successful', () => {",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "    pm.expect(response.data.email).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "me"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Admin Management",
+      "item": [
+        {
+          "name": "List All Admins",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('List admins successful', () => {",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "    pm.expect(response.data).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/list",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "list"]
+            },
+            "description": "List all admin users (Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Promote User to Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('User promoted successfully', () => {",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "    pm.expect(response.data.role).to.equal('ADMIN');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"testuser@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/promote",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "promote"]
+            },
+            "description": "Promote a user to admin role (Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Demote Admin to Student",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Admin demoted successfully', () => {",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "    pm.expect(response.data.role).to.equal('STUDENT');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"oldadmin@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/demote",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "demote"]
+            },
+            "description": "Demote an admin to student role (Admin only, cannot demote yourself)"
+          },
+          "response": []
+        }
+      ],
+      "description": "Endpoints for managing admin users"
+    },
+    {
+      "name": "Components (Product Catalog)",
+      "item": [
+        {
+          "name": "Public - Browse",
+          "item": [
+            {
+              "name": "Get All Components",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Get components successful', () => {",
+                      "    const response = pm.response.json();",
+                      "    pm.expect(response.success).to.be.true;",
+                      "    pm.expect(response.data).to.be.an('array');",
+                      "    pm.expect(response.pagination).to.exist;",
+                      "    if (response.data.length > 0) {",
+                      "        pm.collectionVariables.set('componentId', response.data[0].id);",
+                      "    }",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/components?page=1&limit=10&sortBy=createdAt&sortOrder=desc",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "components"],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "10"
+                    },
+                    {
+                      "key": "sortBy",
+                      "value": "createdAt"
+                    },
+                    {
+                      "key": "sortOrder",
+                      "value": "desc"
+                    }
+                  ]
+                },
+                "description": "Get all components with pagination (Public access)"
+              },
+              "response": []
+            },
+            {
+              "name": "Search Components",
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/components?search=arduino&isActive=true&page=1&limit=20",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "components"],
+                  "query": [
+                    {
+                      "key": "search",
+                      "value": "arduino"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true"
+                    },
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "20"
+                    }
+                  ]
+                },
+                "description": "Search components by name, description, or SKU"
+              },
+              "response": []
+            },
+            {
+              "name": "Filter by Price Range",
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/components?minPrice=50000&maxPrice=200000&inStock=true&sortBy=price&sortOrder=asc",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "components"],
+                  "query": [
+                    {
+                      "key": "minPrice",
+                      "value": "50000",
+                      "description": "Min price in paise (₹500)"
+                    },
+                    {
+                      "key": "maxPrice",
+                      "value": "200000",
+                      "description": "Max price in paise (₹2000)"
+                    },
+                    {
+                      "key": "inStock",
+                      "value": "true"
+                    },
+                    {
+                      "key": "sortBy",
+                      "value": "price"
+                    },
+                    {
+                      "key": "sortOrder",
+                      "value": "asc"
+                    }
+                  ]
+                },
+                "description": "Filter components by price range (prices in paise)"
+              },
+              "response": []
+            },
+            {
+              "name": "Get Component by ID",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Get component by ID successful', () => {",
+                      "    const response = pm.response.json();",
+                      "    pm.expect(response.success).to.be.true;",
+                      "    pm.expect(response.data.id).to.exist;",
+                      "    pm.expect(response.data.name).to.exist;",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/components/{{componentId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "components", "{{componentId}}"]
+                },
+                "description": "Get single component by ID (Public access)"
+              },
+              "response": []
+            }
+          ],
+          "description": "Public endpoints - No authentication required"
+        },
+        {
+          "name": "Admin - Management",
+          "item": [
+            {
+              "name": "Create Component",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 201) {",
+                      "    const response = pm.response.json();",
+                      "    pm.collectionVariables.set('componentId', response.data.id);",
+                      "    pm.test('Component created successfully', () => {",
+                      "        pm.expect(response.success).to.be.true;",
+                      "        pm.expect(response.data.id).to.exist;",
+                      "    });",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{accessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Arduino Uno R3\",\n  \"sku\": \"ARD-UNO-R3\",\n  \"description\": \"Microcontroller board based on ATmega328P. Perfect for beginners and prototyping.\",\n  \"typicalUseCase\": \"Great for learning electronics, robotics projects, and IoT applications\",\n  \"vendorLink\": \"https://store.arduino.cc/products/arduino-uno-rev3\",\n  \"imageUrl\": \"https://example.com/arduino-uno-r3.jpg\",\n  \"unitPriceCents\": 179900,\n  \"stockQuantity\": 50,\n  \"isActive\": true\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/components",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "components"]
+                },
+                "description": "Create a new component (Admin only)\nPrice in paise: 179900 = ₹1799.00"
+              },
+              "response": []
+            },
+            {
+              "name": "Create Component - Sensor",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{accessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"DHT22 Temperature & Humidity Sensor\",\n  \"sku\": \"SENS-DHT22\",\n  \"description\": \"Digital temperature and humidity sensor with high accuracy\",\n  \"typicalUseCase\": \"Weather stations, environmental monitoring, home automation\",\n  \"vendorLink\": \"https://www.adafruit.com/product/385\",\n  \"imageUrl\": \"https://example.com/dht22.jpg\",\n  \"unitPriceCents\": 29900,\n  \"stockQuantity\": 100,\n  \"isActive\": true\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/components",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "components"]
+                },
+                "description": "Create DHT22 sensor component\nPrice: 29900 paise = ₹299.00"
+              },
+              "response": []
+            },
+            {
+              "name": "Update Component",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Component updated successfully', () => {",
+                      "    const response = pm.response.json();",
+                      "    pm.expect(response.success).to.be.true;",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{accessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"unitPriceCents\": 199900,\n  \"stockQuantity\": 75,\n  \"description\": \"Arduino Uno R3 - Updated with USB-C port. Microcontroller board based on ATmega328P.\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/components/{{componentId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "components", "{{componentId}}"]
+                },
+                "description": "Update component details (Admin only)\nAll fields are optional"
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Component (Soft Delete)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Component deleted successfully', () => {",
+                      "    const response = pm.response.json();",
+                      "    pm.expect(response.success).to.be.true;",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{accessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/components/{{componentId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "components", "{{componentId}}"]
+                },
+                "description": "Soft delete component (sets isActive=false)\nAdmin only"
+              },
+              "response": []
+            }
+          ],
+          "description": "Admin-only component management endpoints"
+        },
+        {
+          "name": "Admin - Stock Management",
+          "item": [
+            {
+              "name": "Update Stock - Set Quantity",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{accessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"quantity\": 100,\n  \"operation\": \"set\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/components/{{componentId}}/stock",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "components", "{{componentId}}", "stock"]
+                },
+                "description": "Set stock to exact quantity\nOperation: 'set'"
+              },
+              "response": []
+            },
+            {
+              "name": "Update Stock - Add Quantity",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{accessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"quantity\": 25,\n  \"operation\": \"add\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/components/{{componentId}}/stock",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "components", "{{componentId}}", "stock"]
+                },
+                "description": "Add quantity to current stock\nOperation: 'add'"
+              },
+              "response": []
+            },
+            {
+              "name": "Update Stock - Subtract Quantity",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{accessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"quantity\": 10,\n  \"operation\": \"subtract\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/components/{{componentId}}/stock",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "components", "{{componentId}}", "stock"]
+                },
+                "description": "Subtract quantity from current stock\nOperation: 'subtract'\nStock cannot go below 0"
+              },
+              "response": []
+            },
+            {
+              "name": "Get Low Stock Components",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Get low stock components', () => {",
+                      "    const response = pm.response.json();",
+                      "    pm.expect(response.success).to.be.true;",
+                      "    pm.expect(response.data).to.be.an('array');",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{accessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/components/analytics/low-stock?threshold=20",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "components", "analytics", "low-stock"],
+                  "query": [
+                    {
+                      "key": "threshold",
+                      "value": "20",
+                      "description": "Stock threshold (default: 10)"
+                    }
+                  ]
+                },
+                "description": "Get components with stock below threshold\nAdmin only"
+              },
+              "response": []
+            },
+            {
+              "name": "Get Out of Stock Components",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Get out of stock components', () => {",
+                      "    const response = pm.response.json();",
+                      "    pm.expect(response.success).to.be.true;",
+                      "    pm.expect(response.data).to.be.an('array');",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{accessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/components/analytics/out-of-stock",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "components", "analytics", "out-of-stock"]
+                },
+                "description": "Get all components with stock = 0\nAdmin only"
+              },
+              "response": []
+            }
+          ],
+          "description": "Stock management and analytics endpoints"
+        }
+      ],
+      "description": "Complete Product Catalog API - Public browsing + Admin management"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    }
+  ]
+}

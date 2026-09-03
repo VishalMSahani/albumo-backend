@@ -1,0 +1,447 @@
+import type { EmailEventType } from "../generated/prisma/client.js";
+
+export interface EmailTemplateData {
+  user?: {
+    name?: string | null;
+    email: string;
+  };
+  order?: {
+    id: string;
+    totalAmount: number;
+    items?: string[];
+  };
+  mentor?: {
+    name: string;
+    sessionDate: string;
+  };
+  project?: {
+    title: string;
+    id: string;
+  };
+  verificationLink?: string;
+  resetLink?: string;
+  [key: string]: unknown;
+}
+
+export interface EmailTemplate {
+  subject: string;
+  html: string;
+  text: string;
+}
+
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
+const COMPANY_NAME = "BuildWise";
+const SUPPORT_EMAIL = "support@buildwise.com";
+
+/**
+ * Base HTML template wrapper
+ */
+function wrapTemplate(content: string): string {
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${COMPANY_NAME}</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #4CAF50;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .logo {
+            font-size: 32px;
+            font-weight: bold;
+            color: #4CAF50;
+            margin-bottom: 10px;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 30px;
+            background-color: #4CAF50;
+            color: white !important;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+        .button:hover {
+            background-color: #45a049;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            font-size: 12px;
+            color: #777;
+        }
+        .highlight {
+            background-color: #f0f8ff;
+            padding: 15px;
+            border-left: 4px solid #4CAF50;
+            margin: 20px 0;
+        }
+        h1 {
+            color: #333;
+            font-size: 24px;
+        }
+        .order-details {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">🔧 ${COMPANY_NAME}</div>
+            <p style="color: #666; margin: 0;">Your Hardware Project Platform</p>
+        </div>
+        ${content}
+        <div class="footer">
+            <p>© ${new Date().getFullYear()} ${COMPANY_NAME}. All rights reserved.</p>
+            <p>Need help? Contact us at <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a></p>
+            <p><a href="${FRONTEND_URL}">Visit our website</a></p>
+        </div>
+    </div>
+</body>
+</html>
+  `;
+}
+
+/**
+ * Welcome email on user signup
+ */
+function userSignupTemplate(data: EmailTemplateData): EmailTemplate {
+  const userName = data.user?.name || "there";
+  
+  const html = wrapTemplate(`
+    <h1>Welcome to ${COMPANY_NAME}! 🎉</h1>
+    <p>Hi ${userName},</p>
+    <p>Thank you for joining ${COMPANY_NAME}! We're excited to help you bring your hardware project ideas to life.</p>
+    
+    <div class="highlight">
+        <h3>What you can do:</h3>
+        <ul>
+            <li>🤖 Generate custom project ideas with AI</li>
+            <li>📚 Browse our featured project library</li>
+            <li>🛒 Purchase components and project kits</li>
+            <li>👨‍🏫 Get 1:1 mentorship from experts</li>
+            <li>📄 Access step-by-step documentation</li>
+        </ul>
+    </div>
+    
+    <p style="text-align: center;">
+        <a href="${FRONTEND_URL}/projects" class="button">Explore Projects</a>
+    </p>
+    
+    <p>If you have any questions, our support team is here to help!</p>
+    <p>Happy building! 🚀</p>
+  `);
+
+  return {
+    subject: `Welcome to ${COMPANY_NAME}! 🎉`,
+    html,
+    text: `Welcome to ${COMPANY_NAME}!\n\nHi ${userName},\n\nThank you for joining ${COMPANY_NAME}! We're excited to help you bring your hardware project ideas to life.\n\nExplore projects: ${FRONTEND_URL}/projects\n\nHappy building!`,
+  };
+}
+
+/**
+ * Email verification template
+ */
+function emailVerificationTemplate(data: EmailTemplateData): EmailTemplate {
+  const userName = data.user?.name || "there";
+  const verificationLink = data.verificationLink || "#";
+
+  const html = wrapTemplate(`
+    <h1>Verify Your Email Address</h1>
+    <p>Hi ${userName},</p>
+    <p>Thanks for signing up! Please verify your email address to complete your registration.</p>
+    
+    <p style="text-align: center;">
+        <a href="${verificationLink}" class="button">Verify Email Address</a>
+    </p>
+    
+    <p>Or copy and paste this link into your browser:</p>
+    <p style="word-break: break-all; color: #666;">${verificationLink}</p>
+    
+    <p><strong>This link will expire in 24 hours.</strong></p>
+    
+    <p>If you didn't create an account, you can safely ignore this email.</p>
+  `);
+
+  return {
+    subject: "Verify Your Email Address",
+    html,
+    text: `Verify Your Email Address\n\nHi ${userName},\n\nPlease verify your email: ${verificationLink}\n\nThis link expires in 24 hours.`,
+  };
+}
+
+/**
+ * Password reset template
+ */
+function passwordResetTemplate(data: EmailTemplateData): EmailTemplate {
+  const userName = data.user?.name || "there";
+  const resetLink = data.resetLink || "#";
+
+  const html = wrapTemplate(`
+    <h1>Reset Your Password</h1>
+    <p>Hi ${userName},</p>
+    <p>We received a request to reset your password. Click the button below to create a new password:</p>
+    
+    <p style="text-align: center;">
+        <a href="${resetLink}" class="button">Reset Password</a>
+    </p>
+    
+    <p>Or copy and paste this link into your browser:</p>
+    <p style="word-break: break-all; color: #666;">${resetLink}</p>
+    
+    <p><strong>This link will expire in 1 hour.</strong></p>
+    
+    <p>If you didn't request a password reset, please ignore this email or contact support if you have concerns.</p>
+  `);
+
+  return {
+    subject: "Reset Your Password",
+    html,
+    text: `Reset Your Password\n\nHi ${userName},\n\nReset your password: ${resetLink}\n\nThis link expires in 1 hour.`,
+  };
+}
+
+/**
+ * Order created template
+ */
+function orderCreatedTemplate(data: EmailTemplateData): EmailTemplate {
+  const userName = data.user?.name || "Customer";
+  const orderId = data.order?.id || "N/A";
+  const totalAmount = data.order?.totalAmount || 0;
+
+  const html = wrapTemplate(`
+    <h1>Order Confirmed! 🎉</h1>
+    <p>Hi ${userName},</p>
+    <p>Thank you for your order! We've received your order and it's being processed.</p>
+    
+    <div class="order-details">
+        <h3>Order Details:</h3>
+        <p><strong>Order ID:</strong> #${orderId}</p>
+        <p><strong>Total Amount:</strong> ₹${totalAmount.toFixed(2)}</p>
+    </div>
+    
+    <p style="text-align: center;">
+        <a href="${FRONTEND_URL}/orders/${orderId}" class="button">View Order</a>
+    </p>
+    
+    <p>We'll send you another email once your order has been shipped.</p>
+  `);
+
+  return {
+    subject: `Order Confirmed - #${orderId}`,
+    html,
+    text: `Order Confirmed!\n\nHi ${userName},\n\nOrder ID: #${orderId}\nTotal: ₹${totalAmount}\n\nView order: ${FRONTEND_URL}/orders/${orderId}`,
+  };
+}
+
+/**
+ * Payment successful template
+ */
+function orderPaidTemplate(data: EmailTemplateData): EmailTemplate {
+  const userName = data.user?.name || "Customer";
+  const orderId = data.order?.id || "N/A";
+  const totalAmount = data.order?.totalAmount || 0;
+
+  const html = wrapTemplate(`
+    <h1>Payment Successful! ✅</h1>
+    <p>Hi ${userName},</p>
+    <p>Great news! Your payment has been received and confirmed.</p>
+    
+    <div class="order-details">
+        <h3>Payment Details:</h3>
+        <p><strong>Order ID:</strong> #${orderId}</p>
+        <p><strong>Amount Paid:</strong> ₹${totalAmount.toFixed(2)}</p>
+        <p><strong>Payment Status:</strong> <span style="color: #4CAF50;">SUCCESS</span></p>
+    </div>
+    
+    <p>Your order is now being prepared for shipment. We'll notify you once it's on its way!</p>
+    
+    <p style="text-align: center;">
+        <a href="${FRONTEND_URL}/orders/${orderId}" class="button">Track Order</a>
+    </p>
+  `);
+
+  return {
+    subject: `Payment Successful - Order #${orderId}`,
+    html,
+    text: `Payment Successful!\n\nOrder #${orderId}\nAmount: ₹${totalAmount}\n\nTrack order: ${FRONTEND_URL}/orders/${orderId}`,
+  };
+}
+
+/**
+ * Order shipped template
+ */
+function orderShippedTemplate(data: EmailTemplateData): EmailTemplate {
+  const userName = data.user?.name || "Customer";
+  const orderId = data.order?.id || "N/A";
+  const trackingNumber = (data as any).trackingNumber || "TBA";
+
+  const html = wrapTemplate(`
+    <h1>Your Order is On Its Way! 📦</h1>
+    <p>Hi ${userName},</p>
+    <p>Exciting news! Your order has been shipped and is on its way to you.</p>
+    
+    <div class="order-details">
+        <h3>Shipping Details:</h3>
+        <p><strong>Order ID:</strong> #${orderId}</p>
+        <p><strong>Tracking Number:</strong> ${trackingNumber}</p>
+    </div>
+    
+    <div class="highlight">
+        <p>📍 <strong>Estimated Delivery:</strong> 5-7 business days</p>
+    </div>
+    
+    <p style="text-align: center;">
+        <a href="${FRONTEND_URL}/orders/${orderId}" class="button">Track Your Order</a>
+    </p>
+    
+    <p>Get ready to start building your project!</p>
+  `);
+
+  return {
+    subject: `Order Shipped - #${orderId}`,
+    html,
+    text: `Your Order is On Its Way!\n\nOrder #${orderId}\nTracking: ${trackingNumber}\n\nTrack: ${FRONTEND_URL}/orders/${orderId}`,
+  };
+}
+
+/**
+ * Mentor session booked template
+ */
+function mentorSessionBookedTemplate(data: EmailTemplateData): EmailTemplate {
+  const userName = data.user?.name || "Student";
+  const mentorName = data.mentor?.name || "Your Mentor";
+  const sessionDate = data.mentor?.sessionDate || "TBA";
+
+  const html = wrapTemplate(`
+    <h1>Mentor Session Booked! 👨‍🏫</h1>
+    <p>Hi ${userName},</p>
+    <p>Your 1:1 mentorship session has been successfully booked!</p>
+    
+    <div class="highlight">
+        <h3>Session Details:</h3>
+        <p><strong>Mentor:</strong> ${mentorName}</p>
+        <p><strong>Date & Time:</strong> ${sessionDate}</p>
+    </div>
+    
+    <p><strong>What to prepare:</strong></p>
+    <ul>
+        <li>Your project details and questions</li>
+        <li>Any error messages or issues you're facing</li>
+        <li>Circuit diagrams (if applicable)</li>
+    </ul>
+    
+    <p style="text-align: center;">
+        <a href="${FRONTEND_URL}/mentor-sessions" class="button">View Session Details</a>
+    </p>
+  `);
+
+  return {
+    subject: `Mentor Session Booked with ${mentorName}`,
+    html,
+    text: `Mentor Session Booked!\n\nMentor: ${mentorName}\nDate: ${sessionDate}\n\nView: ${FRONTEND_URL}/mentor-sessions`,
+  };
+}
+
+/**
+ * AI project generated template
+ */
+function aiProjectGeneratedTemplate(data: EmailTemplateData): EmailTemplate {
+  const userName = data.user?.name || "there";
+  const projectTitle = data.project?.title || "Your Project";
+  const projectId = data.project?.id || "";
+
+  const html = wrapTemplate(`
+    <h1>Your AI Project is Ready! 🤖</h1>
+    <p>Hi ${userName},</p>
+    <p>Great news! Your custom project "<strong>${projectTitle}</strong>" has been successfully generated by our AI.</p>
+    
+    <div class="highlight">
+        <h3>What's included:</h3>
+        <ul>
+            <li>✅ Complete project documentation</li>
+            <li>✅ Component list with pricing</li>
+            <li>✅ Step-by-step methodology</li>
+            <li>✅ Circuit diagrams</li>
+            <li>✅ Downloadable PDF & PPT</li>
+        </ul>
+    </div>
+    
+    <p style="text-align: center;">
+        <a href="${FRONTEND_URL}/projects/${projectId}" class="button">View Your Project</a>
+    </p>
+    
+    <p>Ready to start building? You can purchase the required components directly from our store!</p>
+  `);
+
+  return {
+    subject: `Your AI Project "${projectTitle}" is Ready!`,
+    html,
+    text: `Your AI Project is Ready!\n\nProject: ${projectTitle}\n\nView: ${FRONTEND_URL}/projects/${projectId}`,
+  };
+}
+
+/**
+ * Get email template by event type
+ */
+export function getEmailTemplate(
+  eventType: EmailEventType,
+  data: EmailTemplateData
+): EmailTemplate {
+  switch (eventType) {
+    case "USER_SIGNUP":
+      return userSignupTemplate(data);
+    case "USER_EMAIL_VERIFICATION":
+      return emailVerificationTemplate(data);
+    case "PASSWORD_RESET":
+      return passwordResetTemplate(data);
+    case "ORDER_CREATED":
+      return orderCreatedTemplate(data);
+    case "ORDER_PAID":
+      return orderPaidTemplate(data);
+    case "ORDER_SHIPPED":
+      return orderShippedTemplate(data);
+    case "MENTOR_SESSION_BOOKED":
+      return mentorSessionBookedTemplate(data);
+    case "AI_PROJECT_GENERATED":
+      return aiProjectGeneratedTemplate(data);
+    default:
+      // Generic template
+      return {
+        subject: "Notification from BuildWise",
+        html: wrapTemplate(`
+          <h1>Notification</h1>
+          <p>You have a new notification from ${COMPANY_NAME}.</p>
+          <p>Please check your dashboard for more details.</p>
+        `),
+        text: "You have a new notification from BuildWise.",
+      };
+  }
+}

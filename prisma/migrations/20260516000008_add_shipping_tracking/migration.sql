@@ -1,0 +1,5 @@
+-- Add shipping tracking fields to Order
+ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "trackingAwb" TEXT;
+ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "trackingUrl" TEXT;
+ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "shippedAt" TIMESTAMPTZ(6);
+ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "deliveredAt" TIMESTAMPTZ(6);

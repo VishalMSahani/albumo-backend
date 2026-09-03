@@ -1,0 +1,653 @@
+{
+	"info": {
+		"_postman_id": "projects-api-collection-2024",
+		"name": "BuildWise - Projects API",
+		"description": "Complete API collection for Featured Projects module with category-based organization, pre-built inventory, YouTube tutorials, and admin controls.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "buildwise-projects"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{authToken}}",
+				"type": "string"
+			}
+		]
+	},
+	"item": [
+		{
+			"name": "Public Endpoints",
+			"item": [
+				{
+					"name": "List All Projects",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/projects?page=1&limit=20&sortBy=createdAt&sortOrder=desc",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "projects"],
+							"query": [
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Page number (default: 1)"
+								},
+								{
+									"key": "limit",
+									"value": "20",
+									"description": "Items per page (default: 20, max: 100)"
+								},
+								{
+									"key": "sortBy",
+									"value": "createdAt",
+									"description": "Sort field: createdAt, updatedAt, title, viewCount, buildCount, averageRating, estimatedCostCents"
+								},
+								{
+									"key": "sortOrder",
+									"value": "desc",
+									"description": "Sort order: asc or desc"
+								},
+								{
+									"key": "category",
+									"value": "ROBOTICS",
+									"description": "Filter by category (IOT, ROBOTICS, DRONE, etc.)",
+									"disabled": true
+								},
+								{
+									"key": "difficulty",
+									"value": "BEGINNER",
+									"description": "Filter by difficulty (BEGINNER, INTERMEDIATE, ADVANCED)",
+									"disabled": true
+								},
+								{
+									"key": "isFeatured",
+									"value": "true",
+									"description": "Featured projects only",
+									"disabled": true
+								},
+								{
+									"key": "preBuiltAvailable",
+									"value": "true",
+									"description": "Pre-built projects only",
+									"disabled": true
+								},
+								{
+									"key": "minCost",
+									"value": "500",
+									"description": "Minimum cost in rupees",
+									"disabled": true
+								},
+								{
+									"key": "maxCost",
+									"value": "5000",
+									"description": "Maximum cost in rupees",
+									"disabled": true
+								},
+								{
+									"key": "search",
+									"value": "arduino",
+									"description": "Search in title, summary, description",
+									"disabled": true
+								}
+							]
+						},
+						"description": "List projects with advanced filtering, search, and pagination. All query parameters are optional."
+					},
+					"response": []
+				},
+				{
+					"name": "List Projects by Category",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/projects?category=ROBOTICS&isPublic=true",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "projects"],
+							"query": [
+								{
+									"key": "category",
+									"value": "ROBOTICS",
+									"description": "IOT, ROBOTICS, DRONE, AUTOMATION, ENVIRONMENT, HEALTH, AGRICULTURE, SECURITY, EDUCATION, AUTOMOTIVE, SMART_HOME, ENERGY, WEARABLES, GAMING, MUSIC, COMMUNICATION, AI_ML, COMPUTER_VISION, OTHER"
+								},
+								{
+									"key": "isPublic",
+									"value": "true"
+								}
+							]
+						},
+						"description": "Filter projects by specific category (Robotics, Drone, IoT, etc.)"
+					},
+					"response": []
+				},
+				{
+					"name": "List Featured Projects",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/projects?isFeatured=true&isPublic=true&sortBy=viewCount&sortOrder=desc",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "projects"],
+							"query": [
+								{
+									"key": "isFeatured",
+									"value": "true"
+								},
+								{
+									"key": "isPublic",
+									"value": "true"
+								},
+								{
+									"key": "sortBy",
+									"value": "viewCount"
+								},
+								{
+									"key": "sortOrder",
+									"value": "desc"
+								}
+							]
+						},
+						"description": "Get all featured projects sorted by popularity"
+					},
+					"response": []
+				},
+				{
+					"name": "Search Projects",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/projects?search=arduino weather station&isPublic=true",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "projects"],
+							"query": [
+								{
+									"key": "search",
+									"value": "arduino weather station"
+								},
+								{
+									"key": "isPublic",
+									"value": "true"
+								}
+							]
+						},
+						"description": "Full-text search across title, summary, and description"
+					},
+					"response": []
+				},
+				{
+					"name": "Filter by Price Range",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/projects?minCost=500&maxCost=2000&isPublic=true",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "projects"],
+							"query": [
+								{
+									"key": "minCost",
+									"value": "500",
+									"description": "Minimum cost in rupees"
+								},
+								{
+									"key": "maxCost",
+									"value": "2000",
+									"description": "Maximum cost in rupees"
+								},
+								{
+									"key": "isPublic",
+									"value": "true"
+								}
+							]
+						},
+						"description": "Filter projects by estimated cost range (in rupees)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Project by ID",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/projects/:projectId",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "projects", ":projectId"],
+							"variable": [
+								{
+									"key": "projectId",
+									"value": "{{projectId}}",
+									"description": "Project UUID"
+								}
+							]
+						},
+						"description": "Get detailed project information by ID. View count is automatically incremented."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Project by Slug",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/projects/slug/:slug",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "projects", "slug", ":slug"],
+							"variable": [
+								{
+									"key": "slug",
+									"value": "arduino-weather-station",
+									"description": "Project slug (SEO-friendly URL)"
+								}
+							]
+						},
+						"description": "Get project by SEO-friendly slug. View count is automatically incremented."
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Categories",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/projects/categories",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "projects", "categories"]
+						},
+						"description": "Get all project categories with project counts"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Featured Projects by Category",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/projects/categories/:category/featured?limit=6",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "projects", "categories", ":category", "featured"],
+							"query": [
+								{
+									"key": "limit",
+									"value": "6",
+									"description": "Number of projects to return (default: 6)"
+								}
+							],
+							"variable": [
+								{
+									"key": "category",
+									"value": "ROBOTICS",
+									"description": "Category name (IOT, ROBOTICS, DRONE, etc.)"
+								}
+							]
+						},
+						"description": "Get featured projects for a specific category (for homepage sections)"
+					},
+					"response": []
+				}
+			],
+			"description": "Public endpoints that don't require authentication"
+		},
+		{
+			"name": "Admin - Project Management",
+			"item": [
+				{
+					"name": "Create Project",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Arduino Weather Station\",\n  \"slug\": \"arduino-weather-station\",\n  \"summary\": \"Build a complete IoT weather station with temperature, humidity, and pressure sensors\",\n  \"description\": \"This project will teach you how to build a complete weather station using Arduino, DHT22 sensor, BMP180 pressure sensor, and ESP8266 WiFi module. You'll learn about sensor interfacing, data logging, and cloud connectivity.\",\n  \"category\": \"IOT\",\n  \"tags\": [\"arduino\", \"sensors\", \"iot\", \"weather\", \"beginner-friendly\"],\n  \"difficulty\": \"BEGINNER\",\n  \"projectType\": \"FEATURED\",\n  \"estimatedCostCents\": 150000,\n  \"estimatedBuildTimeMinutes\": 180,\n  \"preBuiltAvailable\": true,\n  \"preBuiltStock\": 10,\n  \"preBuiltPriceCents\": 250000,\n  \"preBuiltImages\": [\n    \"https://example.com/weather-station-1.jpg\",\n    \"https://example.com/weather-station-2.jpg\"\n  ],\n  \"thumbnailUrl\": \"https://example.com/weather-station-thumb.jpg\",\n  \"youtubeUrl\": \"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\n  \"learningOutcomes\": [\n    \"Understand sensor interfacing with Arduino\",\n    \"Learn I2C and digital communication protocols\",\n    \"Implement WiFi connectivity with ESP8266\",\n    \"Build a web dashboard for data visualization\"\n  ],\n  \"prerequisites\": [\n    \"Basic Arduino programming\",\n    \"Understanding of electronics fundamentals\",\n    \"Soldering skills (optional)\"\n  ],\n  \"isFeatured\": true,\n  \"isPublic\": true,\n  \"components\": [\n    {\n      \"componentId\": \"component-uuid-1\",\n      \"quantity\": 1,\n      \"notes\": \"Main microcontroller - Arduino Uno R3\"\n    },\n    {\n      \"componentId\": \"component-uuid-2\",\n      \"quantity\": 1,\n      \"notes\": \"Temperature and humidity sensor\"\n    },\n    {\n      \"componentId\": \"component-uuid-3\",\n      \"quantity\": 1,\n      \"notes\": \"Barometric pressure sensor\"\n    },\n    {\n      \"componentId\": \"component-uuid-4\",\n      \"quantity\": 1,\n      \"notes\": \"WiFi module for cloud connectivity\"\n    },\n    {\n      \"componentId\": \"component-uuid-5\",\n      \"quantity\": 10,\n      \"notes\": \"Male-to-male jumper wires\"\n    },\n    {\n      \"componentId\": \"component-uuid-6\",\n      \"quantity\": 1,\n      \"notes\": \"Breadboard 830 points\"\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/projects",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "projects"]
+						},
+						"description": "Create a new project. Requires ADMIN role. Slug is auto-generated if not provided."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Robotics Project",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Line Following Robot\",\n  \"summary\": \"Build an autonomous line following robot using Arduino and IR sensors\",\n  \"description\": \"Learn to build a line following robot that can autonomously navigate along a black line. This project covers motor control, sensor integration, and PID control algorithms.\",\n  \"category\": \"ROBOTICS\",\n  \"tags\": [\"robot\", \"arduino\", \"motors\", \"sensors\", \"autonomous\"],\n  \"difficulty\": \"INTERMEDIATE\",\n  \"estimatedCostCents\": 200000,\n  \"estimatedBuildTimeMinutes\": 240,\n  \"preBuiltAvailable\": true,\n  \"preBuiltStock\": 5,\n  \"preBuiltPriceCents\": 350000,\n  \"thumbnailUrl\": \"https://example.com/line-follower.jpg\",\n  \"youtubeUrl\": \"https://www.youtube.com/watch?v=example\",\n  \"learningOutcomes\": [\n    \"Motor driver interfacing\",\n    \"IR sensor calibration\",\n    \"PID control implementation\",\n    \"Chassis design and assembly\"\n  ],\n  \"prerequisites\": [\n    \"Arduino basics\",\n    \"Understanding of DC motors\",\n    \"Basic programming skills\"\n  ],\n  \"isFeatured\": true,\n  \"isPublic\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/projects",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "projects"]
+						},
+						"description": "Create a robotics category project"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Project",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Arduino Weather Station - Updated\",\n  \"summary\": \"Build a complete IoT weather station with real-time cloud data logging\",\n  \"estimatedCostCents\": 145000,\n  \"preBuiltStock\": 15,\n  \"tags\": [\"arduino\", \"sensors\", \"iot\", \"weather\", \"cloud\", \"beginner-friendly\"]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/projects/:projectId",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "projects", ":projectId"],
+							"variable": [
+								{
+									"key": "projectId",
+									"value": "{{projectId}}",
+									"description": "Project UUID"
+								}
+							]
+						},
+						"description": "Update project details. All fields are optional. Only provided fields will be updated."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Project",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/projects/:projectId",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "projects", ":projectId"],
+							"variable": [
+								{
+									"key": "projectId",
+									"value": "{{projectId}}",
+									"description": "Project UUID"
+								}
+							]
+						},
+						"description": "Delete a project. Cascades to related records (steps, assets, etc.)"
+					},
+					"response": []
+				}
+			],
+			"description": "Admin endpoints for creating, updating, and deleting projects"
+		},
+		{
+			"name": "Admin - Project Controls",
+			"item": [
+				{
+					"name": "Feature Project",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"isFeatured\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/projects/:projectId/feature",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "projects", ":projectId", "feature"],
+							"variable": [
+								{
+									"key": "projectId",
+									"value": "{{projectId}}",
+									"description": "Project UUID"
+								}
+							]
+						},
+						"description": "Mark a project as featured (show on homepage)"
+					},
+					"response": []
+				},
+				{
+					"name": "Unfeature Project",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"isFeatured\": false\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/projects/:projectId/feature",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "projects", ":projectId", "feature"],
+							"variable": [
+								{
+									"key": "projectId",
+									"value": "{{projectId}}",
+									"description": "Project UUID"
+								}
+							]
+						},
+						"description": "Remove featured status from a project"
+					},
+					"response": []
+				},
+				{
+					"name": "Publish Project",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"isPublic\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/projects/:projectId/publish",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "projects", ":projectId", "publish"],
+							"variable": [
+								{
+									"key": "projectId",
+									"value": "{{projectId}}",
+									"description": "Project UUID"
+								}
+							]
+						},
+						"description": "Publish a project (make it visible to public). Sets publishedAt timestamp on first publish."
+					},
+					"response": []
+				},
+				{
+					"name": "Unpublish Project",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"isPublic\": false\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/projects/:projectId/publish",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "projects", ":projectId", "publish"],
+							"variable": [
+								{
+									"key": "projectId",
+									"value": "{{projectId}}",
+									"description": "Project UUID"
+								}
+							]
+						},
+						"description": "Unpublish a project (make it private/draft)"
+					},
+					"response": []
+				},
+				{
+					"name": "Add Stock",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"stockChange\": 10\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/projects/:projectId/stock",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "projects", ":projectId", "stock"],
+							"variable": [
+								{
+									"key": "projectId",
+									"value": "{{projectId}}",
+									"description": "Project UUID"
+								}
+							]
+						},
+						"description": "Add pre-built stock (positive number increases stock)"
+					},
+					"response": []
+				},
+				{
+					"name": "Remove Stock",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"stockChange\": -5\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/projects/:projectId/stock",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "projects", ":projectId", "stock"],
+							"variable": [
+								{
+									"key": "projectId",
+									"value": "{{projectId}}",
+									"description": "Project UUID"
+								}
+							]
+						},
+						"description": "Remove pre-built stock (negative number decreases stock). Fails if insufficient stock."
+					},
+					"response": []
+				}
+			],
+			"description": "Admin endpoints for project visibility and inventory control"
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:4000",
+			"type": "string"
+		},
+		{
+			"key": "authToken",
+			"value": "YOUR_ADMIN_JWT_TOKEN_HERE",
+			"type": "string"
+		},
+		{
+			"key": "projectId",
+			"value": "",
+			"type": "string"
+		}
+	]
+}

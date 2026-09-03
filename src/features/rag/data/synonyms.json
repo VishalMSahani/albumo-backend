@@ -1,0 +1,8 @@
+{
+  "servo": ["servo motor actuator", "SG90", "MG996R", "robot joint motor"],
+  "board": ["microcontroller development board", "Arduino", "ESP32", "Raspberry Pi"],
+  "lidar": ["LiDAR laser distance sensor", "RPLidar", "range scanner"],
+  "motor driver": ["H-bridge driver", "L298N", "TB6612FNG", "DC motor controller"],
+  "battery": ["Li-ion", "LiPo", "power pack", "18650"],
+  "distance sensor": ["ultrasonic sensor", "HC-SR04", "ToF sensor", "VL53L0X"]
+}

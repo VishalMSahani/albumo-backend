@@ -1,0 +1,98 @@
+# Docker Compose for local development and testing
+version: '3.8'
+
+services:
+  # Backend API
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: robo-gig-backend
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+      # Database - Use your Azure PostgreSQL or local
+      DATABASE_URL: ${DATABASE_URL}
+      # Redis / Upstash for queues, chat sessions, rate limits, and cache
+      REDIS_URL: ${REDIS_URL}
+      # AI chat / combined RAG
+      CHAT_LLM_PROVIDER: ${CHAT_LLM_PROVIDER:-nvidia}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-20250514}
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY}
+      NVIDIA_BASE_URL: ${NVIDIA_BASE_URL:-https://integrate.api.nvidia.com/v1}
+      NVIDIA_CHAT_MODEL: ${NVIDIA_CHAT_MODEL:-deepseek-ai/deepseek-v4-pro}
+      NVIDIA_CHAT_MAX_TOKENS: ${NVIDIA_CHAT_MAX_TOKENS:-4096}
+      NVIDIA_CHAT_TEMPERATURE: ${NVIDIA_CHAT_TEMPERATURE:-1}
+      NVIDIA_CHAT_TOP_P: ${NVIDIA_CHAT_TOP_P:-0.95}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-digitalocean}
+      DIGITALOCEAN_TOKEN: ${DIGITALOCEAN_TOKEN}
+      DIGITALOCEAN_INFERENCE_BASE_URL: ${DIGITALOCEAN_INFERENCE_BASE_URL:-https://inference.do-ai.run}
+      DIGITALOCEAN_EMBEDDING_MODEL: ${DIGITALOCEAN_EMBEDDING_MODEL:-qwen3-embedding-0.6b}
+      EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-1024}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      CHAT_SESSION_TTL_SECONDS: ${CHAT_SESSION_TTL_SECONDS:-3600}
+      CHAT_RATE_LIMIT_PER_MINUTE: ${CHAT_RATE_LIMIT_PER_MINUTE:-20}
+      RAG_CONTEXT_TOKEN_BUDGET: ${RAG_CONTEXT_TOKEN_BUDGET:-700}
+      # Payments
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET}
+      # Azure Blob Storage
+      AZURE_STORAGE_CONNECTION_STRING: ${AZURE_STORAGE_CONNECTION_STRING}
+      AZURE_STORAGE_CONTAINER_NAME: ${AZURE_STORAGE_CONTAINER_NAME:-robo-root-uploads}
+      # JWT Secrets
+      JWT_SECRET: ${JWT_SECRET:-development-secret-key-minimum-32-characters}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-development-refresh-key-minimum-32-chars}
+      # Email (optional for local)
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY}
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@robogig.com}
+      # CORS
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+    volumes:
+      # Mount for hot reload (only in development)
+      - ./src:/app/src
+      - ./prisma:/app/prisma
+    depends_on:
+      - db
+    restart: unless-stopped
+    networks:
+      - robo-gig-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # PostgreSQL database (optional - for local development)
+  db:
+    image: postgres:16-alpine
+    container_name: robo-gig-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-robogig}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - robo-gig-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres-data:
+    driver: local
+
+networks:
+  robo-gig-network:
+    driver: bridge

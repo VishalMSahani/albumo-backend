@@ -1,0 +1,463 @@
+🧩 Enums for the rest of the system
+
+Add these below your existing UserRole / AuthProvider enums:
+
+enum ProjectType {
+  FEATURED
+  AI_GENERATED
+  CUSTOM
+}
+
+enum DifficultyLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum ProjectAssetType {
+  CIRCUIT_DIAGRAM
+  BLOCK_DIAGRAM
+  IMAGE
+  CODE_ZIP
+  OTHER
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum OrderType {
+  KIT_ONLY
+  PROJECT_KIT
+  COMPONENTS_ONLY
+  BUILT_PROJECT
+}
+
+enum OrderItemType {
+  KIT
+  COMPONENT
+  SERVICE
+}
+
+enum PaymentGateway {
+  PHONEPE
+  STRIPE
+  TEST
+}
+
+enum PaymentStatus {
+  CREATED
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum AIGenerationStatus {
+  DRAFT
+  ACCEPTED
+  DISCARDED
+}
+
+enum MentorSessionStatus {
+  REQUESTED
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+enum MentorRole {
+  PRIMARY
+  SECONDARY
+}
+
+enum FileType {
+  PDF
+  IMAGE
+  CODE_ZIP
+  OTHER
+}
+
+📚 Projects & Documentation
+model Project {
+  id        String        @id @default(cuid())
+  title     String
+  slug      String        @unique
+  summary   String?
+  description String?
+
+  projectType ProjectType   @default(FEATURED)
+  difficulty  DifficultyLevel @default(BEGINNER)
+
+  estimatedCostCents        Int?     // e.g. in paise or cents
+  estimatedBuildTimeMinutes Int?
+
+  isPublic   Boolean        @default(true)
+
+  createdById String?
+  createdBy   User?         @relation(fields: [createdById], references: [id])
+
+  defaultMentorId String?
+  defaultMentor   Mentor?   @relation("DefaultMentorProjects", fields: [defaultMentorId], references: [id])
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt       @db.Timestamptz(6)
+
+  // relations
+  steps           ProjectStep[]
+  documentBundle  ProjectDocumentBundle?
+  assets          ProjectAsset[]
+  projectComponents ProjectComponent[]
+  kits            Kit[]
+  aiResults       AIGenerationResult[]
+  mentorAssignments ProjectMentor[]
+  orders          Order[]
+  mentorSessions  MentorSession[]
+}
+
+model ProjectStep {
+  id          String   @id @default(cuid())
+  projectId   String
+  stepNumber  Int
+  title       String
+  bodyMarkdown String
+  pdfUrl      String?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt       @db.Timestamptz(6)
+
+  @@unique([projectId, stepNumber])
+  @@index([projectId])
+}
+
+model ProjectDocumentBundle {
+  id               String   @id @default(cuid())
+  projectId        String   @unique
+  abstract         String?
+  problemStatement String?
+  methodology      String?
+  applications     Json?    // list of strings
+  futureScope      Json?    // list of strings
+
+  pptUrl           String?
+  fullReportPdfUrl String?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt       @db.Timestamptz(6)
+}
+
+model ProjectAsset {
+  id          String           @id @default(cuid())
+  projectId   String
+  assetType   ProjectAssetType
+  url         String
+  description String?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([projectId, assetType])
+}
+
+model ProjectComponent {
+  id          String   @id @default(cuid())
+  projectId   String
+  componentId String
+  quantity    Int      @default(1)
+  notes       String?
+
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  component Component @relation(fields: [componentId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([projectId, componentId])
+  @@index([componentId])
+}
+
+🔩 Components & Kits
+model Component {
+  id             String   @id @default(cuid())
+  name           String
+  sku            String?  @unique
+  description    String?
+  typicalUseCase String?
+  vendorLink     String?
+
+  unitPriceCents Int      // price per unit
+  stockQuantity  Int      @default(0)
+  isActive       Boolean  @default(true)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt       @db.Timestamptz(6)
+
+  projectComponents ProjectComponent[]
+  kitComponents     KitComponent[]
+}
+
+model Kit {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+
+  priceCents     Int
+  stockQuantity  Int      @default(0)
+  isActive       Boolean  @default(true)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id])
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt       @db.Timestamptz(6)
+
+  kitComponents KitComponent[]
+  orderItems    OrderItem[]
+}
+
+model KitComponent {
+  id          String   @id @default(cuid())
+  kitId       String
+  componentId String
+  quantity    Int      @default(1)
+
+  kit       Kit       @relation(fields: [kitId], references: [id], onDelete: Cascade)
+  component Component @relation(fields: [componentId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([kitId, componentId])
+  @@index([componentId])
+}
+
+🤖 AI Generation Logs
+model AIGenerationRequest {
+  id                String          @id @default(cuid())
+  userId            String?
+  inputKeywords     String
+  targetBudgetCents Int?
+  preferredHardware Json?           // e.g. ["ESP32", "Arduino"]
+  requestedDifficulty DifficultyLevel?
+
+  user User? @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  results AIGenerationResult[]
+}
+
+model AIGenerationResult {
+  id            String             @id @default(cuid())
+  aiRequestId   String
+  projectId     String?
+  status        AIGenerationStatus @default(DRAFT)
+  rawResponse   Json
+
+  aiRequest AIGenerationRequest @relation(fields: [aiRequestId], references: [id], onDelete: Cascade)
+  project   Project?            @relation(fields: [projectId], references: [id])
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([aiRequestId])
+  @@index([projectId])
+}
+
+🧾 Orders, Items, Payments, Addresses
+model Address {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  phone     String
+  line1     String
+  line2     String?
+  city      String
+  state     String
+  pincode   String
+  country   String   @default("India")
+  isDefault Boolean  @default(false)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  @@index([userId])
+}
+
+model Order {
+  id        String      @id @default(cuid())
+  userId    String
+  addressId String
+  orderType OrderType
+  status    OrderStatus @default(PENDING_PAYMENT)
+
+  totalAmountCents Int
+
+  projectId String?     // primary project context if any
+  project   Project?    @relation(fields: [projectId], references: [id])
+
+  notes     String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt       @db.Timestamptz(6)
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  address Address @relation(fields: [addressId], references: [id])
+
+  items    OrderItem[]
+  payments Payment[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model OrderItem {
+  id        String        @id @default(cuid())
+  orderId   String
+  itemType  OrderItemType
+
+  kitId       String?
+  componentId String?
+
+  description String
+  quantity    Int       @default(1)
+  unitPriceCents Int
+  subtotalCents  Int
+
+  order     Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  kit       Kit?      @relation(fields: [kitId], references: [id])
+  component Component? @relation(fields: [componentId], references: [id])
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([orderId])
+  @@index([kitId])
+  @@index([componentId])
+}
+
+model Payment {
+  id        String          @id @default(cuid())
+  orderId   String
+  gateway   PaymentGateway  @default(PHONEPE)
+  gatewayOrderId      String?
+  gatewayTransactionId String?
+
+  amountCents Int
+  status      PaymentStatus @default(CREATED)
+
+  rawPayload Json?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([status])
+}
+
+👨‍🏫 Mentors & Sessions
+model Mentor {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  bio           String?
+  expertiseTags String?  // e.g. "ESP32,Robotics"
+  hourlyRateCents Int?
+  isActive      Boolean  @default(true)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt       @db.Timestamptz(6)
+
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projects  ProjectMentor[]
+  defaultProjects Project[] @relation("DefaultMentorProjects")
+  sessions  MentorSession[]
+}
+
+model ProjectMentor {
+  id        String     @id @default(cuid())
+  projectId String
+  mentorId  String
+  role      MentorRole @default(PRIMARY)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  mentor  Mentor  @relation(fields: [mentorId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([projectId, mentorId])
+  @@index([mentorId])
+}
+
+model MentorSession {
+  id        String               @id @default(cuid())
+  studentId String
+  mentorId  String
+  projectId String
+
+  status    MentorSessionStatus  @default(REQUESTED)
+  scheduledAt     DateTime?      @db.Timestamptz(6)
+  durationMinutes Int?
+  sessionLink     String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt       @db.Timestamptz(6)
+
+  student User   @relation("StudentSessions", fields: [studentId], references: [id], onDelete: Cascade)
+  mentor  Mentor @relation(fields: [mentorId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([mentorId])
+  @@index([projectId])
+}
+
+
+Note: you’ll need to add the inverse relation in User if you want:
+
+model User {
+  // ...existing fields
+  mentorProfile Mentor?
+  mentorSessions MentorSession[] @relation("StudentSessions")
+}
+
+🛠 Admin & File Uploads
+model AdminActionLog {
+  id        String   @id @default(cuid())
+  adminId   String
+  actionType String   // e.g. "CREATE_PROJECT", "UPDATE_STOCK"
+  targetType String?  // e.g. "PROJECT", "KIT", "COMPONENT", "ORDER"
+  targetId   String?
+  details    Json?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  admin User @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([targetType, targetId])
+}
+
+model FileUpload {
+  id        String   @id @default(cuid())
+  ownerId   String?
+  projectId String?
+  fileType  FileType
+  url       String
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  owner   User?    @relation(fields: [ownerId], references: [id])
+  project Project? @relation(fields: [projectId], references: [id])
+
+  @@index([projectId])
+  @@index([ownerId])
+}

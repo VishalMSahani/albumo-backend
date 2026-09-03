@@ -1,0 +1,1564 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  STUDENT
+  MENTOR
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum AuthProvider {
+  GOOGLE
+  GITHUB
+  EMAIL_PASSWORD
+}
+
+enum EmailEventType {
+  USER_SIGNUP
+  USER_EMAIL_VERIFICATION
+  PASSWORD_RESET
+  ORDER_CREATED
+  ORDER_PAID
+  ORDER_SHIPPED
+  ORDER_DELIVERED
+  ORDER_CANCELLED
+  MENTOR_SESSION_BOOKED
+  MENTOR_SESSION_REMINDER
+  AI_PROJECT_GENERATED
+  PROJECT_APPROVED
+  PAYMENT_FAILED
+  LOW_STOCK_ALERT
+  CART_ABANDONED
+  SUPPORT_TICKET_CREATED
+  SUPPORT_TICKET_UPDATED
+  SUPPORT_TICKET_REPLY
+}
+
+enum SupportTicketPriority {
+  URGENT
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_FOR_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+enum SupportTicketCategory {
+  ORDER
+  SHIPPING
+  RETURNS_REFUNDS
+  PRODUCT
+  TECHNICAL
+  OTHER
+}
+
+enum SupportMessageSender {
+  CUSTOMER
+  SUPPORT
+  SYSTEM
+}
+
+enum KnowledgeBaseCategory {
+  GENERAL
+  SHIPPING
+  RETURNS
+  PRODUCT
+  TROUBLESHOOTING
+}
+
+enum KnowledgeBaseStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum ProjectType {
+  FEATURED
+  AI_GENERATED
+  CUSTOM
+}
+
+enum DifficultyLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum ProjectCategory {
+  IOT // Internet of Things
+  ROBOTICS // Robots, Robotic Arms, etc.
+  DRONE // Drones, UAVs, Flying Robots
+  AUTOMATION // Home/Industrial Automation
+  ENVIRONMENT // Environment Monitoring, Green Tech
+  HEALTH // Healthcare, Medical Devices
+  AGRICULTURE // Smart Farming, Agri-Tech
+  SECURITY // Security Systems, Surveillance
+  EDUCATION // Educational Tools, Learning Kits
+  AUTOMOTIVE // Car Tech, Vehicle Automation
+  SMART_HOME // Home Automation, Smart Devices
+  ENERGY // Renewable Energy, Power Management
+  WEARABLES // Wearable Tech, Smart Watches
+  GAMING // Gaming Controllers, VR/AR
+  MUSIC // Musical Instruments, Audio Tech
+  COMMUNICATION // RF, Wireless, Communication Systems
+  AI_ML // Artificial Intelligence, Machine Learning
+  COMPUTER_VISION // Image Processing, Object Detection
+  OTHER // Miscellaneous
+}
+
+enum ProjectAssetType {
+  CIRCUIT_DIAGRAM
+  BLOCK_DIAGRAM
+  IMAGE
+  CODE_ZIP
+  VIDEO
+  OTHER
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  PROCESSING
+  PACKED
+  SHIPPED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  RETURN_REQUESTED
+  RETURNED
+  REFUND_INITIATED
+  REFUNDED
+  CANCELLED
+}
+
+enum OrderType {
+  KIT_ONLY
+  PROJECT_KIT
+  COMPONENTS_ONLY
+  BUILT_PROJECT
+  PRE_BUILT_PROJECT
+  THREE_D_PRINT
+}
+
+enum OrderItemType {
+  KIT
+  COMPONENT
+  SERVICE
+}
+
+enum PaymentGateway {
+  PHONEPE
+  STRIPE
+  RAZORPAY
+  ZOHO
+  TEST
+}
+
+enum PaymentStatus {
+  CREATED
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum ConsentType {
+  TERMS_AND_PRIVACY
+  CHECKOUT_POLICIES
+  COOKIE_PREFERENCES
+}
+
+enum ConsentAction {
+  GRANTED
+  UPDATED
+  WITHDRAWN
+}
+
+enum ConsentSource {
+  REGISTRATION
+  LOGIN
+  OAUTH
+  CHECKOUT
+  THREE_D_PRINTING_CHECKOUT
+  COOKIE_BANNER
+  COOKIE_SETTINGS
+}
+
+enum PrintModelFormat {
+  STL
+  OBJ
+}
+
+enum PrintStorageProvider {
+  AZURE
+  LOCAL
+}
+
+enum PrintQuality {
+  DRAFT
+  STANDARD
+  FINE
+}
+
+enum PrintFinish {
+  RAW
+  SUPPORT_REMOVAL
+  SANDED
+  PRIMED
+  PAINTED
+}
+
+enum PrintOrderStatus {
+  PAYMENT_PENDING
+  PAID
+  UNDER_REVIEW
+  APPROVED
+  PRINTING
+  POST_PROCESSING
+  QUALITY_CHECK
+  PACKED
+  SHIPPED
+  DELIVERED
+  ON_HOLD
+  CANCELLED
+  REFUNDED
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FLAT
+  FREE_SHIPPING
+}
+
+enum AIGenerationStatus {
+  DRAFT
+  ACCEPTED
+  DISCARDED
+}
+
+enum MentorSessionStatus {
+  REQUESTED
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+enum MentorRole {
+  PRIMARY
+  SECONDARY
+}
+
+enum FileType {
+  PDF
+  IMAGE
+  CODE_ZIP
+  OTHER
+}
+
+enum StudentListingType {
+  COMPONENT
+  PROJECT
+  KIT
+  OTHER
+}
+
+enum ItemCondition {
+  NEW
+  LIKE_NEW
+  GOOD
+  FAIR
+}
+
+enum ListingStatus {
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  SOLD
+  REMOVED
+}
+
+enum StudentOrderStatus {
+  PENDING_PAYMENT
+  PAYMENT_SECURED
+  SELLER_CONFIRMED
+  ITEM_SHIPPED
+  IN_TRANSIT
+  DELIVERED
+  COMPLETED
+  CANCELLED
+  DISPUTED
+  REFUNDED
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+enum ComponentProductType {
+  ELECTRONICS_COMPONENT
+  MODULE
+  SENSOR
+  DEVELOPMENT_BOARD
+  MOTOR_ACTUATOR
+  POWER_BATTERY
+  TOOL_EQUIPMENT
+  COURSE_KIT
+  BOOK
+  SOFTWARE
+  CUSTOM_PROJECT_SERVICE
+  OTHER
+}
+
+enum RagChunkSourceType {
+  COMPONENT
+  PROJECT
+  FAQ
+  SHORT_POLICY
+}
+
+enum RagDocumentSourceType {
+  MANUAL
+  DATASHEET
+  POLICY
+  TUTORIAL
+  PROJECT_REPORT
+  COURSE_MATERIAL
+}
+
+enum ComponentRelationType {
+  COMPATIBLE_WITH
+  INCLUDES
+  UPGRADE_OF
+  FREQUENTLY_BOUGHT_WITH
+  REQUIRES
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String?
+  email     String   @unique
+  avatarUrl String?
+  role      UserRole @default(STUDENT)
+  college   String?
+
+  isActive Boolean @default(true)
+
+  emailVerified     Boolean   @default(false)
+  emailVerifyToken  String?   @unique
+  emailVerifyExpiry DateTime?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  // relations
+  authAccounts       AuthAccount[]
+  credential         EmailCredential?
+  sessions           Session[]
+  emailNotifications EmailNotification[]
+
+  // Project & orders
+  createdProjects      Project[]
+  orders               Order[]
+  addresses            Address[]
+  aiGenerationRequests AIGenerationRequest[]
+
+  // Mentor
+  mentorProfile   Mentor?
+  studentSessions MentorSession[] @relation("StudentSessions")
+
+  // Admin
+  adminActionLogs AdminActionLog[]
+  fileUploads     FileUpload[]
+
+  // Auth
+  passwordResetTokens PasswordResetToken[]
+
+  // Cart
+  cart Cart?
+
+  // Wishlist
+  wishlistItems WishlistItem[]
+
+  // PCB Quote Requests
+  pcbQuoteRequests PcbQuoteRequest[]
+
+  // 3D printing
+  threeDPrintFiles  ThreeDPrintFile[]
+  threeDPrintOrders ThreeDPrintOrder[]
+
+  // Reviews
+  reviews            Review[]
+  bulkOrderRequests  BulkOrderRequest[]
+  careerApplications CareerApplication[]
+
+  // Legal consent audit trail
+  consentRecords ConsentRecord[]
+
+  // Customer support
+  supportTickets         SupportTicket[] @relation("SupportTicketRequester")
+  assignedSupportTickets SupportTicket[] @relation("SupportTicketAssignee")
+}
+
+// OAuth / provider accounts (Google, GitHub, etc.)
+model AuthAccount {
+  id             String       @id @default(cuid())
+  provider       AuthProvider
+  providerUserId String // e.g. Google sub, GitHub id
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // optional: store tokens if you need them later
+  accessToken  String?
+  refreshToken String?
+  expiresAt    DateTime? @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  // one providerUserId per provider (prevents duplicates)
+  @@unique([provider, providerUserId])
+  @@index([userId])
+}
+
+// Email + password credentials (1-to-1 with User)
+model EmailCredential {
+  userId       String @id
+  passwordHash String // store only a strong hash (bcrypt/argon2)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Optional but recommended for production if you don't want pure stateless JWT.
+// You can also drop this and go full JWT if you prefer.
+model Session {
+  id        String  @id @default(cuid())
+  userId    String
+  token     String  @unique // random session token / JWT id
+  userAgent String?
+  ipAddress String?
+
+  expiresAt DateTime @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  token     String    @unique
+  expiresAt DateTime  @db.Timestamptz(6)
+  usedAt    DateTime? @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+}
+
+model EmailNotification {
+  id        String         @id @default(cuid())
+  userId    String?
+  email     String
+  eventType EmailEventType
+  subject   String
+  body      String         @db.Text // Use Text for longer email content
+
+  // Additional data (JSON) for email templates
+  metadata Json? // Store order details, user details, etc.
+
+  isSent Boolean   @default(false)
+  sentAt DateTime? @db.Timestamptz(6)
+  error  String?   @db.Text
+
+  retryCount Int @default(0)
+  maxRetries Int @default(3)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([eventType, isSent])
+  @@index([createdAt])
+  @@index([isSent, retryCount])
+}
+
+// ========================================
+// PROJECTS & DOCUMENTATION
+// ========================================
+
+model Project {
+  id          String  @id @default(cuid())
+  title       String
+  slug        String  @unique
+  summary     String? @db.Text
+  description String? @db.Text
+
+  // Categorization for better UX
+  category ProjectCategory // Main category (IoT, Robotics, Drone, etc.)
+  tags     String[] // Additional tags for filtering (e.g., ["beginner-friendly", "arduino", "sensors"])
+
+  projectType ProjectType     @default(FEATURED)
+  difficulty  DifficultyLevel @default(BEGINNER)
+
+  // Pricing & Time
+  estimatedCostCents        Int? // DIY kit cost in paise/cents
+  estimatedBuildTimeMinutes Int? // Time to complete
+
+  // Pre-Built Option (Admin builds and lists)
+  preBuiltAvailable  Boolean  @default(false)
+  preBuiltStock      Int      @default(0) // Available pre-built units
+  preBuiltPriceCents Int? // Higher price for assembled version
+  preBuiltImages     String[] // Photos of actual built units
+
+  // Media
+  thumbnailUrl String?
+  youtubeUrl   String? // YouTube tutorial video URL
+
+  // Visibility & Status
+  isFeatured    Boolean   @default(false) // Show on homepage
+  isPublic      Boolean   @default(true)
+  isAIGenerated Boolean   @default(false) // From AI custom project
+  publishedAt   DateTime? @db.Timestamptz(6)
+
+  // Learning Info
+  learningOutcomes String[] // What student will learn
+  prerequisites    String[] // Required knowledge/skills
+
+  // Stats
+  viewCount     Int   @default(0)
+  buildCount    Int   @default(0) // How many students built this
+  averageRating Float @default(0.0)
+
+  // Relations
+  createdById String?
+  createdBy   User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  defaultMentorId String?
+  defaultMentor   Mentor? @relation("DefaultMentorProjects", fields: [defaultMentorId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @db.Timestamptz(6)
+  deletedAt DateTime? @db.Timestamptz(6)
+
+  // relations
+  steps             ProjectStep[]
+  documentBundle    ProjectDocumentBundle?
+  assets            ProjectAsset[]
+  projectComponents ProjectComponent[]
+  kits              Kit[]
+  aiResults         AIGenerationResult[]
+  mentorAssignments ProjectMentor[]
+  orders            Order[]
+  mentorSessions    MentorSession[]
+  fileUploads       FileUpload[]
+
+  @@index([projectType, isPublic])
+  @@index([category])
+  @@index([difficulty])
+  @@index([isFeatured])
+  @@index([isAIGenerated])
+  @@index([slug])
+  @@index([publishedAt])
+  @@index([deletedAt])
+}
+
+model ProjectStep {
+  id           String  @id @default(cuid())
+  projectId    String
+  stepNumber   Int
+  title        String
+  bodyMarkdown String  @db.Text
+  pdfUrl       String?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  @@unique([projectId, stepNumber])
+  @@index([projectId])
+}
+
+model ProjectDocumentBundle {
+  id               String  @id @default(cuid())
+  projectId        String  @unique
+  abstract         String? @db.Text
+  problemStatement String? @db.Text
+  methodology      String? @db.Text
+  applications     Json? // list of strings
+  futureScope      Json? // list of strings
+
+  pptUrl           String?
+  fullReportPdfUrl String?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+}
+
+model ProjectAsset {
+  id          String           @id @default(cuid())
+  projectId   String
+  assetType   ProjectAssetType
+  url         String
+  description String?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([projectId, assetType])
+}
+
+model ProjectComponent {
+  id          String  @id @default(cuid())
+  projectId   String
+  componentId String
+  quantity    Int     @default(1)
+  notes       String?
+
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  component Component @relation(fields: [componentId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([projectId, componentId])
+  @@index([componentId])
+}
+
+// ========================================
+// CATEGORIES & SUBCATEGORIES
+// ========================================
+
+model Category {
+  id            String        @id @default(cuid())
+  name          String        @unique
+  description   String?       @db.Text
+  imageUrl      String?
+  isActive      Boolean       @default(true)
+  subcategories Subcategory[]
+  createdAt     DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime      @updatedAt @db.Timestamptz(6)
+
+  @@index([isActive])
+}
+
+model Subcategory {
+  id          String  @id @default(cuid())
+  categoryId  String
+  name        String
+  description String? @db.Text
+  imageUrl    String?
+  isActive    Boolean @default(true)
+
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  @@unique([categoryId, name])
+  @@index([categoryId])
+  @@index([isActive])
+}
+
+// ========================================
+// COMPONENTS & KITS
+// ========================================
+
+model Component {
+  id             String  @id @default(cuid())
+  name           String
+  slug           String? @unique // SEO-friendly URL identifier e.g. "hc-05-bluetooth-module"
+  sku            String? @unique
+  description    String? @db.Text
+  typicalUseCase String?
+  vendorLink     String?
+  imageUrl       String?
+
+  category         String               @default("Electronics Components")
+  subcategory      String               @default("General")
+  productType      ComponentProductType @default(ELECTRONICS_COMPONENT)
+  brand            String?
+  tags             String[]             @default([])
+  isBestSeller     Boolean              @default(false)
+  isRobomaniacItem Boolean              @default(false)
+  isSoftware       Boolean              @default(false)
+
+  unitPriceCents       Int // price per unit (original / compare-at price)
+  discountedPriceCents Int? // sale price — null means no active discount
+  stockQuantity        Int     @default(0)
+  isActive             Boolean @default(true)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  projectComponents ProjectComponent[]
+  kitComponents     KitComponent[]
+  orderItems        OrderItem[]
+  cartItems         CartItem[]
+  wishlistItems     WishlistItem[]
+  reviews           Review[]
+  media             ProductMedia[]
+  outgoingRelations ComponentRelation[] @relation("ComponentRelationSource")
+  incomingRelations ComponentRelation[] @relation("ComponentRelationTarget")
+
+  @@index([slug])
+  @@index([isActive])
+  @@index([category, subcategory])
+  @@index([productType])
+  @@index([isBestSeller])
+  @@index([isRobomaniacItem])
+  @@index([sku])
+}
+
+model ProductMedia {
+  id          String    @id @default(cuid())
+  componentId String
+  type        MediaType @default(IMAGE)
+  url         String
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now()) @db.Timestamptz(6)
+
+  component Component @relation(fields: [componentId], references: [id], onDelete: Cascade)
+
+  @@index([componentId])
+}
+
+model Kit {
+  id          String  @id @default(cuid())
+  name        String
+  slug        String  @unique
+  description String? @db.Text
+  imageUrl    String?
+
+  priceCents    Int
+  stockQuantity Int     @default(0)
+  isActive      Boolean @default(true)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  kitComponents KitComponent[]
+  orderItems    OrderItem[]
+
+  @@index([isActive])
+  @@index([projectId])
+  @@index([slug])
+}
+
+model KitComponent {
+  id          String @id @default(cuid())
+  kitId       String
+  componentId String
+  quantity    Int    @default(1)
+
+  kit       Kit       @relation(fields: [kitId], references: [id], onDelete: Cascade)
+  component Component @relation(fields: [componentId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([kitId, componentId])
+  @@index([componentId])
+}
+
+// ========================================
+// COMBINED RAG, PAGEINDEX & GRAPH
+// ========================================
+
+model RagChunk {
+  id         String                       @id @default(cuid())
+  sourceType RagChunkSourceType
+  sourceId   String
+  chunkText  String                       @db.Text
+  metadata   Json?
+  embedding  Unsupported("vector(1024)")?
+  createdAt  DateTime                     @default(now()) @db.Timestamptz(6)
+
+  @@index([sourceType, sourceId])
+  @@index([createdAt])
+}
+
+model Document {
+  id         String                @id @default(cuid())
+  title      String
+  sourceType RagDocumentSourceType
+  sourceId   String?
+  fileUrl    String?
+  metadata   Json?
+  createdAt  DateTime              @default(now()) @db.Timestamptz(6)
+  updatedAt  DateTime              @updatedAt @db.Timestamptz(6)
+
+  nodes DocumentNode[]
+
+  @@index([sourceType])
+  @@index([sourceId])
+  @@index([createdAt])
+}
+
+model DocumentNode {
+  id         String   @id @default(cuid())
+  documentId String
+  parentId   String?
+  nodeId     String
+  title      String
+  summary    String   @db.Text
+  fullText   String?  @db.Text
+  startPage  Int?
+  endPage    Int?
+  startIndex Int?
+  endIndex   Int?
+  sortOrder  Int      @default(0)
+  metadata   Json?
+  createdAt  DateTime @default(now()) @db.Timestamptz(6)
+
+  document Document       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  parent   DocumentNode?  @relation("DocumentNodeTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children DocumentNode[] @relation("DocumentNodeTree")
+
+  @@unique([documentId, nodeId])
+  @@index([documentId])
+  @@index([parentId])
+  @@index([documentId, parentId, sortOrder])
+}
+
+model ComponentRelation {
+  id                String                @id @default(cuid())
+  sourceComponentId String
+  targetComponentId String
+  type              ComponentRelationType
+  metadata          Json?
+  createdAt         DateTime              @default(now()) @db.Timestamptz(6)
+
+  sourceComponent Component @relation("ComponentRelationSource", fields: [sourceComponentId], references: [id], onDelete: Cascade)
+  targetComponent Component @relation("ComponentRelationTarget", fields: [targetComponentId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceComponentId, targetComponentId, type])
+  @@index([sourceComponentId, type])
+  @@index([targetComponentId, type])
+  @@index([type])
+}
+
+// ========================================
+// AI GENERATION
+// ========================================
+
+model AIGenerationRequest {
+  id                  String           @id @default(cuid())
+  userId              String?
+  inputKeywords       String
+  targetBudgetCents   Int?
+  preferredHardware   Json? // e.g. ["ESP32", "Arduino"]
+  requestedDifficulty DifficultyLevel?
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  results AIGenerationResult[]
+
+  @@index([userId])
+}
+
+model AIGenerationResult {
+  id          String             @id @default(cuid())
+  aiRequestId String
+  projectId   String?
+  status      AIGenerationStatus @default(DRAFT)
+  rawResponse Json
+
+  aiRequest AIGenerationRequest @relation(fields: [aiRequestId], references: [id], onDelete: Cascade)
+  project   Project?            @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([aiRequestId])
+  @@index([projectId])
+  @@index([status])
+}
+
+// ========================================
+// ORDERS, PAYMENTS, ADDRESSES
+// ========================================
+
+model Address {
+  id        String  @id @default(cuid())
+  userId    String
+  name      String
+  phone     String
+  line1     String
+  line2     String?
+  city      String
+  state     String
+  pincode   String
+  country   String  @default("India")
+  isDefault Boolean @default(false)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  @@index([userId])
+}
+
+model Order {
+  id        String      @id @default(cuid())
+  userId    String
+  addressId String
+  orderType OrderType
+  status    OrderStatus @default(PENDING_PAYMENT)
+
+  totalAmountCents Int
+
+  projectId String? // primary project context if any
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  couponId String?
+  coupon   Coupon? @relation(fields: [couponId], references: [id], onDelete: SetNull)
+
+  notes String? @db.Text
+
+  // Shipping
+  trackingAwb String?
+  trackingUrl String?
+  shippedAt   DateTime? @db.Timestamptz(6)
+  deliveredAt DateTime? @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  address Address @relation(fields: [addressId], references: [id], onDelete: Restrict)
+
+  items            OrderItem[]
+  payments         Payment[]
+  threeDPrintOrder ThreeDPrintOrder?
+  consentRecords   ConsentRecord[]
+  supportTickets   SupportTicket[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([projectId])
+  @@index([couponId])
+}
+
+model OrderItem {
+  id       String        @id @default(cuid())
+  orderId  String
+  itemType OrderItemType
+
+  kitId       String?
+  componentId String?
+
+  description    String
+  quantity       Int    @default(1)
+  unitPriceCents Int
+  subtotalCents  Int
+
+  order     Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  kit       Kit?       @relation(fields: [kitId], references: [id], onDelete: SetNull)
+  component Component? @relation(fields: [componentId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([orderId])
+  @@index([kitId])
+  @@index([componentId])
+}
+
+model Payment {
+  id                   String         @id @default(cuid())
+  orderId              String
+  gateway              PaymentGateway @default(PHONEPE)
+  gatewayOrderId       String?
+  gatewayTransactionId String?
+  gatewayPaymentId     String?
+
+  amountCents Int
+  status      PaymentStatus @default(CREATED)
+
+  rawPayload Json?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([status])
+  @@index([gatewayTransactionId])
+}
+
+// ========================================
+// CART
+// ========================================
+
+model Cart {
+  id        String     @id @default(cuid())
+  userId    String     @unique
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+  updatedAt DateTime   @updatedAt @db.Timestamptz(6)
+}
+
+model CartItem {
+  id          String    @id @default(cuid())
+  cartId      String
+  cart        Cart      @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  componentId String
+  component   Component @relation(fields: [componentId], references: [id], onDelete: Cascade)
+  quantity    Int       @default(1)
+  addedAt     DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@unique([cartId, componentId])
+  @@index([cartId])
+}
+
+// ========================================
+// COUPONS
+// ========================================
+
+model Coupon {
+  id            String       @id @default(cuid())
+  code          String       @unique
+  label         String
+  discountType  DiscountType
+  discountValue Int // percent * 100 OR paise
+  minOrderCents Int          @default(0)
+  maxUsageCount Int?
+  usageCount    Int          @default(0)
+  perUserLimit  Int?
+  allowedEmail  String? // if set, coupon is only valid for this specific email
+  expiresAt     DateTime?
+  isActive      Boolean      @default(true)
+  createdAt     DateTime     @default(now()) @db.Timestamptz(6)
+  orders        Order[]
+}
+
+// ========================================
+// MENTORS & SESSIONS
+// ========================================
+
+model Mentor {
+  id              String  @id @default(cuid())
+  userId          String  @unique
+  bio             String? @db.Text
+  expertiseTags   String? // e.g. "ESP32,Robotics"
+  hourlyRateCents Int?
+  isActive        Boolean @default(true)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projects        ProjectMentor[]
+  defaultProjects Project[]       @relation("DefaultMentorProjects")
+  sessions        MentorSession[]
+
+  @@index([isActive])
+  @@index([userId])
+}
+
+model ProjectMentor {
+  id        String     @id @default(cuid())
+  projectId String
+  mentorId  String
+  role      MentorRole @default(PRIMARY)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  mentor  Mentor  @relation(fields: [mentorId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([projectId, mentorId])
+  @@index([mentorId])
+}
+
+model MentorSession {
+  id        String @id @default(cuid())
+  studentId String
+  mentorId  String
+  projectId String
+
+  status          MentorSessionStatus @default(REQUESTED)
+  scheduledAt     DateTime?           @db.Timestamptz(6)
+  durationMinutes Int?
+  sessionLink     String?
+  notes           String?             @db.Text
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  student User    @relation("StudentSessions", fields: [studentId], references: [id], onDelete: Cascade)
+  mentor  Mentor  @relation(fields: [mentorId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([mentorId])
+  @@index([projectId])
+  @@index([status])
+}
+
+// ========================================
+// ADMIN & FILE MANAGEMENT
+// ========================================
+
+model StoreSetting {
+  id                         Int               @id @default(1)
+  deliveryFeeEnabled         Boolean           @default(true)
+  deliveryFeeCents           Int               @default(5000)
+  freeDeliveryThresholdCents Int               @default(50000)
+  deliveryFeeRules           DeliveryFeeRule[]
+  updatedAt                  DateTime          @updatedAt @db.Timestamptz(6)
+}
+
+model DeliveryFeeRule {
+  id             String       @id @default(cuid())
+  storeSettingId Int          @default(1)
+  minOrderCents  Int
+  maxOrderCents  Int
+  feeCents       Int
+  sortOrder      Int          @default(0)
+  storeSetting   StoreSetting @relation(fields: [storeSettingId], references: [id], onDelete: Cascade)
+
+  @@index([storeSettingId, sortOrder])
+}
+
+model PrintPricingSetting {
+  id                        Int             @id @default(1)
+  isEnabled                 Boolean         @default(true)
+  baseFeeCents              Int             @default(9900)
+  minimumOrderCents         Int             @default(24900)
+  shellMaterialPercent      Int             @default(20)
+  draftMultiplierPercent    Int             @default(90)
+  standardMultiplierPercent Int             @default(100)
+  fineMultiplierPercent     Int             @default(135)
+  rawFinishFeeCents         Int             @default(0)
+  supportRemovalFeeCents    Int             @default(0)
+  sandingFeeCents           Int             @default(9900)
+  primerFeeCents            Int             @default(14900)
+  paintingFeeCents          Int             @default(24900)
+  draftLeadDays             Int             @default(3)
+  standardLeadDays          Int             @default(5)
+  fineLeadDays              Int             @default(7)
+  maxFileSizeMb             Int             @default(50)
+  maxFilesPerOrder          Int             @default(10)
+  materials                 PrintMaterial[]
+  updatedAt                 DateTime        @updatedAt @db.Timestamptz(6)
+}
+
+model PrintMaterial {
+  id                 String              @id @default(cuid())
+  pricingSettingId   Int                 @default(1)
+  code               String              @unique
+  name               String
+  densityGramsPerCm3 Float
+  pricePerGramCents  Int
+  colors             String[]
+  isActive           Boolean             @default(true)
+  sortOrder          Int                 @default(0)
+  pricingSetting     PrintPricingSetting @relation(fields: [pricingSettingId], references: [id], onDelete: Cascade)
+  orders             ThreeDPrintOrder[]
+
+  @@index([pricingSettingId, sortOrder])
+  @@index([isActive])
+}
+
+model ThreeDPrintFile {
+  id              String               @id @default(cuid())
+  userId          String
+  orderId         String?
+  sortOrder       Int                  @default(0)
+  originalName    String
+  storageProvider PrintStorageProvider
+  storageKey      String               @unique
+  mimeType        String
+  format          PrintModelFormat
+  sizeBytes       Int
+  checksumSha256  String
+  volumeMm3       Float
+  widthMm         Float
+  heightMm        Float
+  depthMm         Float
+  triangleCount   Int
+  createdAt       DateTime             @default(now()) @db.Timestamptz(6)
+
+  user  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order ThreeDPrintOrder? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([orderId, sortOrder])
+  @@index([checksumSha256])
+}
+
+model ThreeDPrintOrder {
+  id                 String           @id @default(cuid())
+  reference          String           @unique
+  userId             String
+  materialId         String
+  commerceOrderId    String           @unique
+  status             PrintOrderStatus @default(PAYMENT_PENDING)
+  color              String
+  quality            PrintQuality
+  finish             PrintFinish
+  infillPercent      Int
+  quantity           Int
+  unitWeightGrams    Float
+  totalWeightGrams   Float
+  baseFeeCents       Int
+  materialCostCents  Int
+  qualityMarkupCents Int
+  finishFeeCents     Int
+  subtotalCents      Int
+  shippingCents      Int
+  totalAmountCents   Int
+  estimatedDays      Int
+  pricingSnapshot    Json
+  customerNotes      String?          @db.Text
+  adminNotes         String?          @db.Text
+  quotedAt           DateTime         @default(now()) @db.Timestamptz(6)
+  createdAt          DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime         @updatedAt @db.Timestamptz(6)
+
+  user          User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  modelFiles    ThreeDPrintFile[]
+  material      PrintMaterial            @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  commerceOrder Order                    @relation(fields: [commerceOrderId], references: [id], onDelete: Restrict)
+  statusHistory ThreeDPrintStatusEvent[]
+
+  @@index([userId, createdAt])
+  @@index([status])
+  @@index([materialId])
+}
+
+model ThreeDPrintStatusEvent {
+  id           String           @id @default(cuid())
+  printOrderId String
+  status       PrintOrderStatus
+  note         String?
+  actorLabel   String?
+  createdAt    DateTime         @default(now()) @db.Timestamptz(6)
+
+  printOrder ThreeDPrintOrder @relation(fields: [printOrderId], references: [id], onDelete: Cascade)
+
+  @@index([printOrderId, createdAt])
+}
+
+model SupportTicket {
+  id                 String                @id @default(cuid())
+  ticketNumber       String                @unique
+  userId             String?
+  orderId            String?
+  assignedToId       String?
+  requesterName      String
+  requesterEmail     String
+  category           SupportTicketCategory
+  subject            String
+  description        String                @db.Text
+  priority           SupportTicketPriority @default(MEDIUM)
+  status             SupportTicketStatus   @default(OPEN)
+  firstResponseDueAt DateTime              @db.Timestamptz(6)
+  resolutionDueAt    DateTime              @db.Timestamptz(6)
+  firstRespondedAt   DateTime?             @db.Timestamptz(6)
+  resolvedAt         DateTime?             @db.Timestamptz(6)
+  lastActivityAt     DateTime              @default(now()) @db.Timestamptz(6)
+  createdAt          DateTime              @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime              @updatedAt @db.Timestamptz(6)
+
+  user       User?                  @relation("SupportTicketRequester", fields: [userId], references: [id], onDelete: SetNull)
+  order      Order?                 @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  assignedTo User?                  @relation("SupportTicketAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  messages   SupportTicketMessage[]
+
+  @@index([userId, createdAt])
+  @@index([requesterEmail, createdAt])
+  @@index([status, priority, lastActivityAt])
+  @@index([assignedToId, status])
+  @@index([firstResponseDueAt])
+  @@index([resolutionDueAt])
+}
+
+model SupportTicketMessage {
+  id         String               @id @default(cuid())
+  ticketId   String
+  authorId   String?
+  authorName String?
+  sender     SupportMessageSender
+  body       String               @db.Text
+  isInternal Boolean              @default(false)
+  createdAt  DateTime             @default(now()) @db.Timestamptz(6)
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+}
+
+model KnowledgeBaseArticle {
+  id          String                @id @default(cuid())
+  slug        String                @unique
+  title       String
+  excerpt     String
+  content     String                @db.Text
+  category    KnowledgeBaseCategory
+  status      KnowledgeBaseStatus   @default(DRAFT)
+  isFeatured  Boolean               @default(false)
+  sortOrder   Int                   @default(0)
+  viewCount   Int                   @default(0)
+  createdById String?
+  updatedById String?
+  publishedAt DateTime?             @db.Timestamptz(6)
+  createdAt   DateTime              @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime              @updatedAt @db.Timestamptz(6)
+
+  @@index([status, category, sortOrder])
+  @@index([isFeatured, status])
+}
+
+model AdminActionLog {
+  id         String  @id @default(cuid())
+  adminId    String
+  actionType String // e.g. "CREATE_PROJECT", "UPDATE_STOCK"
+  targetType String? // e.g. "PROJECT", "KIT", "COMPONENT", "ORDER"
+  targetId   String?
+  details    Json?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  admin User @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([targetType, targetId])
+  @@index([createdAt])
+}
+
+model ConsentRecord {
+  id             String        @id @default(cuid())
+  userId         String?
+  orderId        String?
+  anonymousId    String?
+  type           ConsentType
+  action         ConsentAction @default(GRANTED)
+  source         ConsentSource
+  policyVersion  String
+  policyVersions Json
+  preferences    Json?
+  metadata       Json?
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime      @default(now()) @db.Timestamptz(6)
+
+  user  User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  order Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([orderId])
+  @@index([anonymousId, createdAt])
+  @@index([type, createdAt])
+  @@index([source, createdAt])
+  @@index([createdAt])
+}
+
+model FileUpload {
+  id        String   @id @default(cuid())
+  ownerId   String?
+  projectId String?
+  fileType  FileType
+  url       String
+  fileName  String?
+  fileSize  Int? // in bytes
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  owner   User?    @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([ownerId])
+  @@index([fileType])
+}
+
+// ========================================
+// PCB QUOTE REQUESTS
+// ========================================
+
+enum PcbQuoteStatus {
+  SUBMITTED
+  REVIEWING
+  QUOTED
+  ACCEPTED
+  IN_PRODUCTION
+  SHIPPED
+  CANCELLED
+}
+
+model PcbQuoteRequest {
+  id               String         @id @default(cuid())
+  userId           String
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  boardLayers      Int
+  boardSizeX       Float
+  boardSizeY       Float
+  quantity         Int
+  surfaceFinish    String
+  copperWeight     String
+  gerberFileUrl    String?
+  notes            String?        @db.Text
+  status           PcbQuoteStatus @default(SUBMITTED)
+  quotedPricePaise Int?
+  adminNotes       String?        @db.Text
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([userId])
+  @@index([status])
+}
+
+// ========================================
+// BULK ORDER QUOTE REQUESTS
+// ========================================
+
+enum BulkOrderStatus {
+  SUBMITTED
+  REVIEWING
+  QUOTED
+  COMPLETED
+  CANCELLED
+}
+
+model BulkOrderRequest {
+  id          String          @id @default(cuid())
+  userId      String?
+  user        User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  email       String
+  phone       String
+  companyName String?
+  csvFileUrl  String?
+  notes       String?         @db.Text
+  status      BulkOrderStatus @default(SUBMITTED)
+  adminNotes  String?         @db.Text
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([userId])
+  @@index([status])
+}
+
+// ========================================
+// PRODUCT REVIEWS
+// ========================================
+
+model Review {
+  id          String     @id @default(cuid())
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  componentId String?
+  component   Component? @relation(fields: [componentId], references: [id], onDelete: Cascade)
+  rating      Int
+  title       String?
+  body        String?    @db.Text
+  isVerified  Boolean    @default(false)
+  isApproved  Boolean    @default(true)
+  imageUrl    String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  @@unique([userId, componentId])
+  @@index([componentId])
+  @@index([userId])
+  @@index([isApproved])
+}
+
+// ========================================
+// WISHLIST
+// ========================================
+
+model WishlistItem {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  componentId String
+  component   Component @relation(fields: [componentId], references: [id], onDelete: Cascade)
+  addedAt     DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@unique([userId, componentId])
+  @@index([userId])
+}
+
+model MediaLibrary {
+  id        String   @id @default(cuid())
+  url       String   @unique
+  filename  String
+  mimeType  String?
+  sizeBytes Int?
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([createdAt])
+}
+
+// ========================================
+// CAREER APPLICATIONS
+// ========================================
+
+enum CareerApplicationStatus {
+  APPLIED
+  UNDER_REVIEW
+  SHORTLISTED
+  REJECTED
+  HIRED
+}
+
+model CareerApplication {
+  id           String                  @id @default(cuid())
+  userId       String?
+  user         User?                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  email        String
+  phone        String
+  portfolioUrl String
+  coverLetter  String                  @db.Text
+  status       CareerApplicationStatus @default(APPLIED)
+  adminNotes   String?                 @db.Text
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([userId])
+  @@index([status])
+}

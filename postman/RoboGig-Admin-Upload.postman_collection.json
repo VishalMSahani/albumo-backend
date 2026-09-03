@@ -1,0 +1,373 @@
+{
+	"info": {
+		"_postman_id": "robogig-admin-upload-collection",
+		"name": "RoboGig - Admin Project Upload",
+		"description": "Collection for testing admin project creation with Azure Blob Storage uploads",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{adminToken}}",
+				"type": "string"
+			}
+		]
+	},
+	"item": [
+		{
+			"name": "1. Auth - Login as Admin",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"const response = pm.response.json();",
+							"if (response.success && response.data.accessToken) {",
+							"    pm.collectionVariables.set('adminToken', response.data.accessToken);",
+							"    console.log('✅ Admin token saved:', response.data.accessToken.substring(0, 20) + '...');",
+							"} else {",
+							"    console.log('❌ Login failed');",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"email\": \"admin@robogig.com\",\n  \"password\": \"Admin@123\"\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/auth/login",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "auth", "login"]
+				},
+				"description": "Login with admin credentials to get access token"
+			},
+			"response": []
+		},
+		{
+			"name": "2. Create Project - Minimal (No Files)",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "title",
+							"value": "Arduino Smart Home System",
+							"type": "text"
+						},
+						{
+							"key": "category",
+							"value": "IOT",
+							"type": "text",
+							"description": "Options: IOT, ROBOTICS, ELECTRONICS, PROGRAMMING, MECHANICAL, EDUCATIONAL"
+						},
+						{
+							"key": "description",
+							"value": "Build a complete IoT-based smart home automation system using Arduino. Control lights, fans, and appliances remotely via smartphone app. Learn about sensors, relays, and wireless communication protocols.",
+							"type": "text"
+						},
+						{
+							"key": "difficulty",
+							"value": "INTERMEDIATE",
+							"type": "text",
+							"description": "Options: BEGINNER, INTERMEDIATE, ADVANCED"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/projects/upload",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "projects", "upload"]
+				},
+				"description": "Create project with minimal required fields (no file uploads)"
+			},
+			"response": []
+		},
+		{
+			"name": "3. Create Project - With Images Only",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "images",
+							"type": "file",
+							"src": [],
+							"description": "Add image files (max 5, JPEG/PNG/WebP, max 5MB each)"
+						},
+						{
+							"key": "thumbnail",
+							"type": "file",
+							"src": [],
+							"description": "Add thumbnail image (JPEG/PNG/WebP, max 5MB)"
+						},
+						{
+							"key": "title",
+							"value": "Line Following Robot",
+							"type": "text"
+						},
+						{
+							"key": "category",
+							"value": "ROBOTICS",
+							"type": "text"
+						},
+						{
+							"key": "description",
+							"value": "Build an autonomous line-following robot using IR sensors and Arduino. Perfect beginner robotics project to learn about sensor integration and motor control.",
+							"type": "text"
+						},
+						{
+							"key": "summary",
+							"value": "Autonomous robot that follows black lines using IR sensors",
+							"type": "text"
+						},
+						{
+							"key": "difficulty",
+							"value": "BEGINNER",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/projects/upload",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "projects", "upload"]
+				},
+				"description": "Create project with image uploads"
+			},
+			"response": []
+		},
+		{
+			"name": "4. Create Project - Complete (All Fields)",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "images",
+							"type": "file",
+							"src": [],
+							"description": "Add up to 5 project images"
+						},
+						{
+							"key": "pdfs",
+							"type": "file",
+							"src": [],
+							"description": "Add up to 5 PDF documents (max 10MB each)"
+						},
+						{
+							"key": "thumbnail",
+							"type": "file",
+							"src": [],
+							"description": "Project thumbnail"
+						},
+						{
+							"key": "title",
+							"value": "IoT Weather Station with ESP32",
+							"type": "text"
+						},
+						{
+							"key": "category",
+							"value": "IOT",
+							"type": "text"
+						},
+						{
+							"key": "description",
+							"value": "Build a complete weather monitoring station using ESP32 microcontroller. Measure temperature, humidity, pressure, and air quality. Display data on OLED screen and send to cloud dashboard. Learn about I2C communication, sensor integration, WiFi connectivity, and data visualization.",
+							"type": "text"
+						},
+						{
+							"key": "summary",
+							"value": "IoT weather station with cloud monitoring and OLED display",
+							"type": "text"
+						},
+						{
+							"key": "difficulty",
+							"value": "INTERMEDIATE",
+							"type": "text"
+						},
+						{
+							"key": "tags",
+							"value": "[\"esp32\", \"iot\", \"weather\", \"sensors\", \"cloud\", \"mqtt\"]",
+							"type": "text",
+							"description": "JSON array of tags"
+						},
+						{
+							"key": "prerequisites",
+							"value": "[\"Basic electronics knowledge\", \"Arduino IDE setup\", \"Understanding of WiFi basics\", \"Soldering skills\"]",
+							"type": "text",
+							"description": "JSON array"
+						},
+						{
+							"key": "learningOutcomes",
+							"value": "[\"ESP32 programming and WiFi configuration\", \"I2C communication protocol\", \"Sensor data acquisition and processing\", \"MQTT protocol for IoT\", \"Cloud dashboard integration\", \"PCB design basics\"]",
+							"type": "text",
+							"description": "JSON array"
+						},
+						{
+							"key": "estimatedCostCents",
+							"value": "349900",
+							"type": "text",
+							"description": "₹3,499 in cents"
+						},
+						{
+							"key": "estimatedBuildTimeMinutes",
+							"value": "480",
+							"type": "text",
+							"description": "8 hours in minutes"
+						},
+						{
+							"key": "youtubeUrl",
+							"value": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+							"type": "text"
+						},
+						{
+							"key": "externalLinks",
+							"value": "[{\"title\": \"ESP32 Datasheet\", \"url\": \"https://www.espressif.com/en/products/socs/esp32\"}, {\"title\": \"MQTT Tutorial\", \"url\": \"https://mqtt.org/\"}]",
+							"type": "text",
+							"description": "JSON array of objects with title and url"
+						},
+						{
+							"key": "componentIds",
+							"value": "[]",
+							"type": "text",
+							"description": "JSON array of component IDs from marketplace (e.g., [\"cm4abc123\", \"cm4def456\"])"
+						},
+						{
+							"key": "isFeatured",
+							"value": "true",
+							"type": "text"
+						},
+						{
+							"key": "isPublic",
+							"value": "true",
+							"type": "text"
+						},
+						{
+							"key": "preBuiltAvailable",
+							"value": "true",
+							"type": "text"
+						},
+						{
+							"key": "preBuiltStock",
+							"value": "25",
+							"type": "text"
+						},
+						{
+							"key": "preBuiltPriceCents",
+							"value": "899900",
+							"type": "text",
+							"description": "₹8,999 in cents"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/projects/upload",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "projects", "upload"]
+				},
+				"description": "Create project with all possible fields and file uploads"
+			},
+			"response": []
+		},
+		{
+			"name": "5. Test Validation - Too Many Images",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "images",
+							"type": "file",
+							"src": [],
+							"description": "Add MORE than 5 images to test validation"
+						},
+						{
+							"key": "title",
+							"value": "Test Validation Project",
+							"type": "text"
+						},
+						{
+							"key": "category",
+							"value": "ELECTRONICS",
+							"type": "text"
+						},
+						{
+							"key": "description",
+							"value": "Testing validation for too many images",
+							"type": "text"
+						},
+						{
+							"key": "difficulty",
+							"value": "BEGINNER",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/projects/upload",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "projects", "upload"]
+				},
+				"description": "Should fail with error: 'Maximum 5 images allowed'"
+			},
+			"response": []
+		},
+		{
+			"name": "6. Test Validation - Missing Required Fields",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "title",
+							"value": "Incomplete Project",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/projects/upload",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "projects", "upload"]
+				},
+				"description": "Should fail with error about missing required fields"
+			},
+			"response": []
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:4000",
+			"type": "string"
+		},
+		{
+			"key": "adminToken",
+			"value": "",
+			"type": "string"
+		}
+	]
+}

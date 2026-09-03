@@ -1,0 +1,1 @@
+ALTER TYPE "PaymentGateway" ADD VALUE IF NOT EXISTS 'ZOHO';
