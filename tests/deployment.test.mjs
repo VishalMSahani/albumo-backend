@@ -52,6 +52,31 @@ async function uploadFixture({ owner = 'user-1', path = '/api/3d-printing/files'
   return { req, res, nextError, opened, deleted };
 }
 
+test('cache and queue connections follow the Redis URL TLS scheme', () => {
+  for (const protocol of ['redis:', 'rediss:']) {
+    const result = spawnSync(process.execPath, ['--input-type=module', '-e', `
+      import assert from 'node:assert/strict';
+      const { redis, createBullMQConnection } = await import('./dist/lib/redis.js');
+      const queue = createBullMQConnection();
+      queue.on('error', () => {});
+      // Inspect parsed connection options without contacting an external server.
+      redis.disconnect();
+      queue.disconnect();
+      for (const client of [redis, queue]) {
+        assert.equal(Boolean(client.options.tls), process.env.REDIS_URL.startsWith('rediss:'));
+        assert.equal(client.options.host, 'redis.example.invalid');
+        assert.equal(client.options.port, 10852);
+        assert.equal(client.options.username, 'default');
+        assert.equal(client.options.password, 'test-password');
+      }
+      assert.equal(queue.options.maxRetriesPerRequest, null);
+    `], { cwd: new URL('..', import.meta.url), encoding: 'utf8', timeout: 30_000,
+      env: { ...process.env, REDIS_URL: protocol + '//default:test-password@redis.example.invalid:10852' },
+    });
+    assert.equal(result.status, 0, result.stderr || result.error?.message);
+  }
+});
+
 test('server bundle exposes Helmet to deployment dependency tracing', async () => {
   const { metafile } = await build({
     absWorkingDir: fileURLToPath(new URL('..', import.meta.url)),

@@ -59,6 +59,13 @@ Configure payment webhooks at `/api/payments/webhook/razorpay` and/or
 
 ## Background jobs on Vercel
 
+Set `REDIS_URL` to the provider's full connection URL. In Vercel's Value field,
+paste the URL without surrounding quotes or a `REDIS_URL=` prefix. Use `redis://`
+for a non-TLS endpoint or `rediss://` for a TLS endpoint; both cache and queue
+connections follow that scheme. Upstash requires `rediss://`; for Redis Cloud,
+use the scheme matching the database's TLS configuration. Save the variable for
+Production and redeploy before checking `/health` again.
+
 The protected `GET /api/internal/jobs` endpoint runs due maintenance and drains
 queue workers before returning. Redis prevents overlapping batches. Persistent
 servers continue to run the existing cron schedules and workers.
