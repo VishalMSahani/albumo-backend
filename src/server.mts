@@ -1,8 +1,8 @@
 import { initSentry, Sentry } from "./lib/sentry.js";
 initSentry(); // Must be first
 
-import helmet from "helmet";
-import express, { type Express, type Request, type Response } from "express";
+import helmetModule, { type HelmetOptions } from "helmet";
+import express, { type Express, type Request, type RequestHandler, type Response } from "express";
 import cors, { type CorsOptions } from "cors";
 import cookieParser from "cookie-parser";
 import { rateLimit } from "express-rate-limit";
@@ -46,6 +46,9 @@ import { errorHandler, notFoundHandler } from "./middlewares/error.middleware.js
 import { csrfProtection, csrfTokenHandler } from "./middlewares/csrf.middleware.js";
 
 const app: Express = express();
+// Vercel's secondary compiler resolves Helmet's CommonJS declaration as a namespace.
+// Both runtime entrypoints export the same callable middleware factory.
+const helmet = helmetModule as unknown as (options?: Readonly<HelmetOptions>) => RequestHandler;
 
 // Preserve the originating client IP behind the production reverse proxy.
 app.set("trust proxy", 1);
