@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { Readable } from 'node:stream';
 import { createHmac } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import multer from 'multer';
 import jwt from 'jsonwebtoken';
+import { build } from 'esbuild';
 import { withStagedUpload } from '../dist/middlewares/upload-transport.middleware.js';
 import { csrfProtection } from '../dist/middlewares/csrf.middleware.js';
 import { checkDeployment } from '../scripts/check-deployment.mjs';
@@ -50,6 +52,18 @@ async function uploadFixture({ owner = 'user-1', path = '/api/3d-printing/files'
   return { req, res, nextError, opened, deleted };
 }
 
+test('server bundle exposes Helmet to deployment dependency tracing', async () => {
+  const { metafile } = await build({
+    absWorkingDir: fileURLToPath(new URL('..', import.meta.url)),
+    entryPoints: ['src/server.mts'],
+    bundle: true, platform: 'node', format: 'esm', packages: 'external',
+    write: false, metafile: true,
+  });
+  assert(Object.values(metafile.outputs).some(output =>
+    output.imports.some(dependency => dependency.path === 'helmet' && dependency.external)),
+  'Helmet must be a statically traceable dependency of the server bundle');
+});
+
 test('generated Vercel bundle starts without credentials for optional gateways', () => {
   const result = spawnSync(process.execPath, ['--input-type=module', '-e', `
     const { default: app } = await import('./server.mjs');
@@ -59,6 +73,8 @@ test('generated Vercel bundle starts without credentials for optional gateways',
     const url = 'http://127.0.0.1:' + server.address().port;
     const root = await fetch(url);
     if (root.status !== 200) throw new Error('Root smoke check failed');
+    if (root.headers.get('x-content-type-options') !== 'nosniff') throw new Error('Helmet security headers missing');
+    if (root.headers.has('x-powered-by')) throw new Error('Express fingerprint was not removed');
     const csrf = await fetch(url + '/api/auth/csrf-token');
     if (!(await csrf.json()).data.csrfToken) throw new Error('CSRF initialization failed');
     const untrusted = await fetch(url + '/api/auth/csrf-token', { headers: { Origin: 'https://roboroot-attacker.vercel.app' } });
