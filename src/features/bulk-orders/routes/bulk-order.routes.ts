@@ -1,5 +1,5 @@
 import { Router } from "express";
-import multer from "multer";
+import multer from "../../../middlewares/upload-transport.middleware.js";
 import { createBulkOrder, getBulkOrders, updateBulkOrderStatus } from "../controllers/bulk-order.controller.js";
 import { authenticate, optionalAuthenticate, authorize } from "../../../middlewares/auth.middleware.js";
 

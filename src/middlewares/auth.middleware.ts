@@ -21,19 +21,19 @@ export function authenticate(
   next: NextFunction
 ): void {
   try {
-    // Accept token from httpOnly cookie (preferred) or Authorization header (admin panel / mobile)
+    // Explicit admin/mobile credentials take precedence over storefront cookies.
     const cookieToken = (req.cookies as Record<string, string>)?.accessToken;
     const authHeader = req.headers.authorization;
     let token: string | undefined;
 
-    if (cookieToken) {
-      token = cookieToken;
-    } else if (authHeader) {
+    if (authHeader) {
       const parts = authHeader.split(" ");
       if (parts.length !== 2 || parts[0] !== "Bearer") {
         throw new UnauthorizedError("Invalid authorization header format. Use: Bearer <token>");
       }
       token = parts[1];
+    } else if (cookieToken) {
+      token = cookieToken;
     }
 
     if (!token) {
@@ -125,18 +125,18 @@ export function optionalAuthenticate(
   next: NextFunction
 ): void {
   try {
-    // Same dual-source logic as authenticate — cookie first, then header
+    // Match authenticate: explicit credentials take precedence over cookies.
     const cookieToken = (req.cookies as Record<string, string>)?.accessToken;
     const authHeader = req.headers.authorization;
     let token: string | undefined;
 
-    if (cookieToken) {
-      token = cookieToken;
-    } else if (authHeader) {
+    if (authHeader) {
       const parts = authHeader.split(" ");
       if (parts.length === 2 && parts[0] === "Bearer") {
         token = parts[1];
       }
+    } else if (cookieToken) {
+      token = cookieToken;
     }
 
     if (token) {

@@ -3,7 +3,8 @@
  * Handles multipart/form-data file uploads using Multer
  */
 
-import multer, { type FileFilterCallback, type Multer } from 'multer';
+import type { FileFilterCallback, Multer } from 'multer';
+import multer from './upload-transport.middleware.js';
 import type { Request, RequestHandler } from 'express';
 import { UPLOAD_LIMITS } from '../services/azure-storage.service.js';
 

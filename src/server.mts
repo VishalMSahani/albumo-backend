@@ -6,7 +6,7 @@ import express, { type Express, type Request, type RequestHandler, type Response
 import cors, { type CorsOptions } from "cors";
 import cookieParser from "cookie-parser";
 import { rateLimit } from "express-rate-limit";
-import cron from "node-cron";
+import { registerScheduledJobs } from "./services/scheduled-jobs.service.js";
 import { logger } from "./lib/logger.js";
 import { prisma } from "./lib/prisma.js";
 import { redis } from "./lib/redis.js";
@@ -14,8 +14,8 @@ import { startEmailWorker, stopEmailWorker } from "./workers/email-bullmq-worker
 import { startWebhookRetryWorker, stopWebhookRetryWorker } from "./workers/webhook-retry-worker.js";
 import { startStockSyncWorker, stopStockSyncWorker } from "./workers/stock-sync-worker.js";
 import { startTrackingPollWorker, stopTrackingPollWorker } from "./workers/tracking-poll-worker.js";
-import { getStockQueue, getTrackingQueue } from "./lib/queue.js";
-import { processAbandonedCarts } from "./services/abandoned-cart.service.js";
+
+
 import authRoutes from "./routes/authRoutes.js";
 import emailRoutes from "./routes/emailRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
@@ -40,6 +40,8 @@ import storeSettingsRoutes from "./features/settings/routes/store-settings.route
 import threeDPrintingRoutes from "./features/three-d-printing/routes/three-d-printing.routes.js";
 import legalRoutes from "./features/legal/legal.routes.js";
 import supportRoutes from "./features/support/support.routes.js";
+import uploadTransportRoutes from "./routes/uploadTransportRoutes.js";
+import jobRoutes from "./routes/jobRoutes.js";
 import { errorHandler, notFoundHandler } from "./middlewares/error.middleware.js";
 import { csrfProtection, csrfTokenHandler } from "./middlewares/csrf.middleware.js";
 
@@ -80,7 +82,7 @@ const vercelOrigin = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}
 const allowedOrigins = Array.from(new Set([
   process.env.FRONTEND_URL || "http://localhost:3000",
   process.env.ADMIN_FRONTEND_URL || "http://localhost:3002",
-  "https://asp-admin.roboroot.in",
+  "https://admin.roboroot.in",
   "https://roboroot.in",
   "https://www.roboroot.in",
   "https://shop.robomaniac.in",
@@ -95,7 +97,7 @@ const allowedOrigins = Array.from(new Set([
   "http://127.0.0.1:3001",
   "http://127.0.0.1:3002",
   "http://127.0.0.1:5173",
-].map(normalizeOrigin).filter(Boolean)));
+].map(normalizeOrigin).filter(origin => Boolean(origin) && (NODE_ENV !== "production" || origin.startsWith("https://")))));
 
 function normalizeOrigin(origin: string) {
   const trimmed = origin.trim().replace(/\/$/, "");
@@ -121,24 +123,13 @@ function isAllowedLocalDevOrigin(origin: string) {
   }
 }
 
-function isAllowedVercelPreview(origin: string) {
-  try {
-    const { hostname, protocol } = new URL(origin);
-    const isKnownProject = hostname.includes("robo-gig") || hostname.includes("roboroot");
-    return protocol === "https:" && hostname.endsWith(".vercel.app") && isKnownProject;
-  } catch {
-    return false;
-  }
-}
-
 function isAllowedOrigin(origin: string | undefined) {
   if (!origin) return true;
 
   const normalizedOrigin = normalizeOrigin(origin);
   return (
     allowedOrigins.includes(normalizedOrigin) ||
-    isAllowedLocalDevOrigin(normalizedOrigin) ||
-    isAllowedVercelPreview(normalizedOrigin)
+    isAllowedLocalDevOrigin(normalizedOrigin)
   );
 }
 
@@ -320,6 +311,8 @@ app.use("/api/auth/forgot-password", authLimiter);
 
 // API routes
 app.use("/api/auth", authRoutes);
+app.use("/api/uploads", uploadTransportRoutes);
+app.use("/api/internal", jobRoutes);
 app.use("/api/legal", legalRoutes);
 app.use("/api/support", supportRoutes);
 app.use("/api/store-settings", storeSettingsRoutes);
@@ -355,116 +348,6 @@ if (process.env.SENTRY_DSN) {
 
 // Global error handler
 app.use(errorHandler);
-
-function registerScheduledJobs() {
-// Auto-cancel stale PENDING_PAYMENT orders after 30 minutes + restore stock
-cron.schedule("*/5 * * * *", async () => {
-  try {
-    const cutoff = new Date(Date.now() - 30 * 60 * 1000);
-    const stale = await prisma.order.findMany({
-      where: { status: "PENDING_PAYMENT", createdAt: { lt: cutoff } },
-      include: { items: { select: { componentId: true, quantity: true } } },
-    });
-
-    for (const order of stale) {
-      await prisma.$transaction(async (tx) => {
-        // Restore stock
-        await Promise.all(
-          order.items
-            .filter((i) => i.componentId)
-            .map((i) =>
-              tx.component.update({
-                where: { id: i.componentId! },
-                data: { stockQuantity: { increment: i.quantity } },
-              })
-            )
-        );
-        await tx.payment.updateMany({
-          where: { orderId: order.id, status: "CREATED" },
-          data: { status: "FAILED" },
-        });
-        await tx.order.update({
-          where: { id: order.id },
-          data: { status: "CANCELLED", notes: "Auto-cancelled: payment not completed within 30 minutes" },
-        });
-        const printOrder = await tx.threeDPrintOrder.findUnique({
-          where: { commerceOrderId: order.id },
-          select: { id: true },
-        });
-        if (printOrder) {
-          await tx.threeDPrintOrder.update({
-            where: { id: printOrder.id },
-            data: { status: "CANCELLED" },
-          });
-          await tx.threeDPrintStatusEvent.create({
-            data: {
-              printOrderId: printOrder.id,
-              status: "CANCELLED",
-              note: "Payment was not completed within 30 minutes",
-              actorLabel: "System",
-            },
-          });
-        }
-      });
-      logger.info("stale order auto-cancelled", { orderId: order.id });
-    }
-  } catch (err) {
-    logger.error("stale order cancellation failed", { error: err });
-  }
-});
-
-// Session cleanup — run daily at 3:07am to delete expired sessions
-cron.schedule("7 3 * * *", async () => {
-  try {
-    const result = await prisma.session.deleteMany({
-      where: { expiresAt: { lt: new Date() } },
-    });
-    logger.info("expired sessions deleted", { count: result.count });
-  } catch (err) {
-    logger.error("session cleanup failed", { error: err });
-  }
-});
-
-// Stock sync — run every hour to check low-stock components
-cron.schedule("13 * * * *", async () => {
-  const stockQueue = getStockQueue();
-  if (stockQueue) {
-    await stockQueue.add("check-all", {}).catch((err: Error) =>
-      logger.error("stock sync enqueue failed", { error: err }),
-    );
-  }
-});
-
-// Tracking poll — run every 30 minutes for all SHIPPED orders
-cron.schedule("*/30 * * * *", async () => {
-  const trackingQueue = getTrackingQueue();
-  if (!trackingQueue) return;
-
-  const shippedOrders = await prisma.order.findMany({
-    where: { status: { in: ["SHIPPED", "OUT_FOR_DELIVERY"] }, trackingAwb: { not: null } },
-    select: { id: true, trackingAwb: true },
-  }).catch(() => []);
-
-  for (const order of shippedOrders) {
-    if (!order.trackingAwb) continue;
-    await trackingQueue.add(`poll-${order.id}`, { orderId: order.id, awb: order.trackingAwb }, {
-      jobId: `track-${order.id}`, // deduplicate — one poll per order at a time
-    }).catch(() => null);
-  }
-  if (shippedOrders.length > 0) {
-    logger.info("tracking poll queued", { count: shippedOrders.length });
-  }
-});
-
-// Abandoned cart reminder — scan every 30 minutes for carts idle 2+ hours
-cron.schedule("*/30 * * * *", async () => {
-  try {
-    await processAbandonedCarts();
-  } catch (err) {
-    logger.error("abandoned cart cron failed", { error: err });
-  }
-});
-}
 
 let server: ReturnType<typeof app.listen> | undefined;
 

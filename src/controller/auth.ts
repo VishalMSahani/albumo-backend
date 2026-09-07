@@ -40,15 +40,7 @@ function isLocalhostUrl(url?: string) {
   return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/.test(url || "");
 }
 
-function getFrontendUrl(req?: Request) {
-  if (req) {
-    const host = (req.headers["x-forwarded-host"] as string) || req.get("host") || "";
-    const isLocal = /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host);
-    if (!isLocal && host) {
-      return `https://${host}`;
-    }
-  }
-
+function getFrontendUrl(_req?: Request) {
   const configuredUrl = process.env.FRONTEND_URL?.trim();
   if (configuredUrl && !(process.env.NODE_ENV === "production" && isLocalhostUrl(configuredUrl))) {
     return configuredUrl;
@@ -112,7 +104,7 @@ function getCookieOptions(overrides: Record<string, unknown> = {}) {
   const base: Record<string, unknown> = {
     httpOnly: true,
     secure: isProd,
-    sameSite: isProd ? "strict" : "lax",
+    sameSite: isProd ? "none" : "lax",
   };
   // Only set domain in production when explicitly configured
   const cookieDomain = process.env.COOKIE_DOMAIN?.trim();

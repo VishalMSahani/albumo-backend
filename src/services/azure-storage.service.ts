@@ -106,7 +106,7 @@ async function getContainerClient(): Promise<ContainerClient> {
   return containerClient;
 }
 
-async function getPrivateContainerClient(): Promise<ContainerClient> {
+export async function getPrivateContainerClient(): Promise<ContainerClient> {
   const blobServiceClient = getBlobServiceClient();
   const containerClient = blobServiceClient.getContainerClient(
     AZURE_PRIVATE_STORAGE_CONTAINER_NAME,
@@ -254,6 +254,9 @@ export async function uploadFileToAzure(
     }
 
     if (!containerClient) {
+      if (process.env.NODE_ENV === "production") {
+        throw new Error("Azure Storage is unavailable; production uploads require persistent storage");
+      }
       // Local fallback
       const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
       const uploadsDir = path.join(process.cwd(), "public", "uploads", fileType);
@@ -352,6 +355,7 @@ export async function uploadPrivateFile(
       contentType: mimeType,
     };
   } catch (error) {
+    if (process.env.NODE_ENV === 'production') throw error;
     console.warn('Private Azure upload failed, using protected local storage.', error);
     const privateRoot = path.resolve(process.cwd(), 'private', 'uploads');
     const absolutePath = path.resolve(privateRoot, storageKey);

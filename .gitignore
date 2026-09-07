@@ -1,6 +1,8 @@
 node_modules/
 dist/
-.env
+.env*
+!.env.example
+!.env.production.example
 private/uploads/
 *.log
 .DS_Store

@@ -5,10 +5,14 @@ import { redis } from "../../../lib/redis.js";
 import { EmailEventType } from "../../../generated/prisma/client.js";
 import { queueEmailNotification } from "../../../services/email-notification.service.js";
 
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID!,
-  key_secret: process.env.RAZORPAY_KEY_SECRET!,
-});
+function getRazorpay() {
+  const keyId = process.env.RAZORPAY_KEY_ID;
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  if (!keyId || !keySecret) {
+    throw Object.assign(new Error("Razorpay is not configured"), { statusCode: 503 });
+  }
+  return new Razorpay({ key_id: keyId, key_secret: keySecret });
+}
 
 export type InitiatePaymentResult = {
   gateway: "RAZORPAY";
@@ -48,7 +52,7 @@ export async function initiatePayment(orderId: string, userId: string, idempoten
   if (isRealGatewayId) {
     gatewayOrderId = existingGatewayId!;
   } else {
-    const gatewayOrder = await razorpay.orders.create({
+    const gatewayOrder = await getRazorpay().orders.create({
       amount: order.totalAmountCents,
       currency: "INR",
       receipt: order.id,

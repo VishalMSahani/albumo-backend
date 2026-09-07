@@ -11,11 +11,13 @@ import { UserRole, AuthProvider } from "../generated/prisma/client.js";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
 const defaultBackendUrl =
+  process.env.BACKEND_PUBLIC_URL?.replace(/\/+$/, "") ||
+  (
   process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}/_/backend`
+    ? `https://${process.env.VERCEL_URL}`
     : process.env.NODE_ENV === "production"
       ? "https://roboroot.in/_/backend"
-      : "http://localhost:4000";
+      : "http://localhost:4000");
 
 function isLocalhostUrl(url?: string) {
   return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/.test(url || "");

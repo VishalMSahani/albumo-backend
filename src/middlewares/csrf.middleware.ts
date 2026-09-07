@@ -15,7 +15,7 @@ import { logger } from "../lib/logger.js";
  *
  * Why is this safe?
  * - A cross-site attacker CAN make the browser send the cookie, but they
- *   CANNOT read the cookie value (SameSite + secure flag) so they can't
+ *   CANNOT read the token response outside the CORS allowlist, so they can't
  *   set the matching header.
  *
  * Configuration via env:
@@ -55,7 +55,7 @@ export function csrfTokenHandler(req: Request, res: Response): void {
   const cookieOpts: Record<string, unknown> = {
     httpOnly: false,  // Frontend JS must be able to read this
     secure: isProd,
-    sameSite: isProd ? "strict" : "lax",
+    sameSite: isProd ? "none" : "lax",
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
     path: "/",
   };
@@ -119,10 +119,9 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction):
   }
 
   // Constant-time comparison to prevent timing attacks
-  if (
-    cookieToken.length !== headerToken.length ||
-    !crypto.timingSafeEqual(Buffer.from(cookieToken), Buffer.from(headerToken))
-  ) {
+  const cookieBytes = Buffer.from(cookieToken);
+  const headerBytes = Buffer.from(headerToken);
+  if (cookieBytes.length !== headerBytes.length || !crypto.timingSafeEqual(cookieBytes, headerBytes)) {
     logger.warn("CSRF token mismatch", { path: req.path, method: req.method });
     res.status(403).json({
       success: false,

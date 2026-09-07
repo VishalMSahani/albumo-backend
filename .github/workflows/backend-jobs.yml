@@ -1,0 +1,27 @@
+name: Process backend jobs
+
+on:
+  schedule:
+    - cron: '2-57/5 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: backend-jobs
+  cancel-in-progress: false
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call the protected Vercel job endpoint
+        env:
+          BACKEND_PUBLIC_URL: ${{ secrets.BACKEND_PUBLIC_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          test -n "$BACKEND_PUBLIC_URL" && test -n "$CRON_SECRET"
+          curl --fail-with-body --silent --show-error --max-time 240 \
+            --header "Authorization: Bearer $CRON_SECRET" \
+            "${BACKEND_PUBLIC_URL%/}/api/internal/jobs"

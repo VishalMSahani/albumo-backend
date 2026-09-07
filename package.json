@@ -7,9 +7,13 @@
   "main": "index.js",
   "scripts": {
     "dev": "node --env-file=.env --import tsx --watch src/server.mts",
-    "build": "prisma generate && tsc && esbuild dist/server.mjs --bundle --platform=node --format=esm --packages=bundle --outfile=dist/vercel-server.mjs",
+    "build": "prisma generate && tsc && esbuild dist/server.mjs --bundle --platform=node --format=esm --packages=external --outfile=dist/vercel-server.mjs",
     "start": "node --env-file-if-exists=.env dist/server.mjs",
     "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "check:deploy": "node --env-file-if-exists=.env scripts/check-deployment.mjs",
+    "test:deploy": "node --test tests/deployment.test.mjs",
+    "storage:cors": "node --env-file-if-exists=.env scripts/configure-upload-cors.mjs",
     "prisma:generate": "prisma generate",
     "prisma:studio": "prisma studio",
     "email:worker": "tsx src/workers/email-worker.ts once",
@@ -23,7 +27,6 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@prisma/adapter-pg": "^7.1.0",
     "@types/bcrypt": "^6.0.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
@@ -45,6 +48,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@prisma/adapter-pg": "^7.1.0",
     "@azure/storage-blob": "^12.29.1",
     "@prisma/client": "^7.1.0",
     "@sentry/node": "^10.53.1",

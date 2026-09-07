@@ -1,5 +1,5 @@
 import { Router, type Router as RouterType } from "express";
-import { authenticate, authorize } from "../../../middlewares/auth.middleware.js";
+import { authenticate, authorize, optionalAuthenticate } from "../../../middlewares/auth.middleware.js";
 import {
   uploadThreeDModel,
   uploadThreeDModels,
@@ -32,7 +32,7 @@ import {
 const router: RouterType = Router();
 
 router.get("/config", getPrintConfigHandler);
-router.post("/preview-quote", uploadThreeDModels, calculatePreviewQuoteHandler);
+router.post("/preview-quote", optionalAuthenticate, uploadThreeDModels, calculatePreviewQuoteHandler);
 
 router.use(authenticate);
 

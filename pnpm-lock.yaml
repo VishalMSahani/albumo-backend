@@ -11,6 +11,9 @@ importers:
       '@azure/storage-blob':
         specifier: ^12.29.1
         version: 12.29.1
+      '@prisma/adapter-pg':
+        specifier: ^7.1.0
+        version: 7.1.0
       '@prisma/client':
         specifier: ^7.1.0
         version: 7.1.0(prisma@7.1.0(@types/react@19.2.7)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)(typescript@5.9.3))(typescript@5.9.3)
@@ -78,9 +81,6 @@ importers:
         specifier: ^4.1.13
         version: 4.1.13
     devDependencies:
-      '@prisma/adapter-pg':
-        specifier: ^7.1.0
-        version: 7.1.0
       '@types/bcrypt':
         specifier: ^6.0.0
         version: 6.0.0
