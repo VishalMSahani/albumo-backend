@@ -44,6 +44,11 @@ export function checkDeployment(env) {
       if (!env[`ZOHO_PAYMENTS_${suffix}`]) errors.push(`ZOHO_PAYMENTS_${suffix} is required when Zoho Payments is configured`);
     }
   }
+  if (env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || env.WHATSAPP_APP_SECRET) {
+    for (const key of ['WHATSAPP_WEBHOOK_VERIFY_TOKEN', 'WHATSAPP_APP_SECRET']) {
+      if (!env[key]) errors.push(`${key} is required when the WhatsApp webhook is configured`);
+    }
+  }
   return errors;
 }
 

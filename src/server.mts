@@ -42,6 +42,7 @@ import legalRoutes from "./features/legal/legal.routes.js";
 import supportRoutes from "./features/support/support.routes.js";
 import uploadTransportRoutes from "./routes/uploadTransportRoutes.js";
 import jobRoutes from "./routes/jobRoutes.js";
+import whatsappWebhookRoutes from "./features/whatsapp/whatsapp-webhook.routes.js";
 import { errorHandler, notFoundHandler } from "./middlewares/error.middleware.js";
 import { csrfProtection, csrfTokenHandler } from "./middlewares/csrf.middleware.js";
 
@@ -155,6 +156,9 @@ app.use(cookieParser());
 // Payment webhooks need raw bytes for gateway signature verification.
 app.use("/api/payments/webhook/razorpay", express.raw({ type: "application/json" }));
 app.use("/api/payments/webhook/zoho", express.raw({ type: "application/json" }));
+// Meta signs the exact request bytes, so this endpoint must be parsed before
+// the general JSON parser below.
+app.use("/webhooks/whatsapp", express.raw({ type: "application/json", limit: "1mb" }));
 
 // Body parsing middleware
 app.use(express.json({ limit: "10mb" }));
@@ -336,6 +340,7 @@ app.use("/api/chat", chatRoutes);
 app.use("/api/bulk-orders", bulkOrderRoutes);
 app.use("/api/careers", careerRoutes);
 app.use("/api/webhooks", reindexRoutes);
+app.use("/webhooks/whatsapp", whatsappWebhookRoutes);
 
 // 404 handler
 app.use(notFoundHandler);

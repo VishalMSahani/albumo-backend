@@ -36,6 +36,7 @@ const EXEMPT_PATHS = [
   "/api/auth/google/callback",
   "/api/auth/github/callback",
   "/api/webhooks",
+  "/webhooks/whatsapp",
 ];
 
 function isExempt(path: string): boolean {

@@ -104,6 +104,23 @@ test('generated Vercel bundle starts without credentials for optional gateways',
     if (!(await csrf.json()).data.csrfToken) throw new Error('CSRF initialization failed');
     const untrusted = await fetch(url + '/api/auth/csrf-token', { headers: { Origin: 'https://roboroot-attacker.vercel.app' } });
     if (untrusted.headers.has('access-control-allow-origin')) throw new Error('Untrusted preview origin was allowed');
+    const whatsappChallenge = 'meta-challenge-fixture';
+    const verifiedWebhook = await fetch(url + '/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=whatsapp-verify-fixture&hub.challenge=' + whatsappChallenge);
+    if (verifiedWebhook.status !== 200 || await verifiedWebhook.text() !== whatsappChallenge) {
+      throw new Error('WhatsApp webhook verification failed');
+    }
+    const rejectedWebhook = await fetch(url + '/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=wrong-token&hub.challenge=' + whatsappChallenge);
+    if (rejectedWebhook.status !== 403) throw new Error('WhatsApp webhook accepted an invalid verify token');
+    const webhookBody = JSON.stringify({ object: 'whatsapp_business_account', entry: [] });
+    const webhookSignature = 'sha256=' + (await import('node:crypto')).createHmac('sha256', 'whatsapp-app-secret-fixture').update(webhookBody).digest('hex');
+    const acknowledgedWebhook = await fetch(url + '/webhooks/whatsapp', {
+      method: 'POST', headers: { 'content-type': 'application/json', 'x-hub-signature-256': webhookSignature }, body: webhookBody,
+    });
+    if (acknowledgedWebhook.status !== 200) throw new Error('WhatsApp webhook acknowledgement failed');
+    const unsignedWebhook = await fetch(url + '/webhooks/whatsapp', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: webhookBody,
+    });
+    if (unsignedWebhook.status !== 401) throw new Error('Unsigned WhatsApp webhook was accepted');
     const denied = await fetch(url + '/api/internal/jobs');
     if (denied.status !== 401) throw new Error('Job endpoint must reject missing credentials');
     server.closeAllConnections();
@@ -111,7 +128,8 @@ test('generated Vercel bundle starts without credentials for optional gateways',
   `], { cwd: new URL('..', import.meta.url), encoding: 'utf8', timeout: 30_000,
     env: { ...process.env, VERCEL: '1', NODE_ENV: 'production', DOTENV_CONFIG_PATH: '__no_deployment_test_env__',
       DATABASE_URL: 'postgresql://test:test@127.0.0.1:1/test', REDIS_URL: 'redis://127.0.0.1:1',
-      CRON_SECRET: 'test-cron-secret', RAZORPAY_KEY_ID: '', RAZORPAY_KEY_SECRET: '' },
+      CRON_SECRET: 'test-cron-secret', RAZORPAY_KEY_ID: '', RAZORPAY_KEY_SECRET: '',
+      WHATSAPP_WEBHOOK_VERIFY_TOKEN: 'whatsapp-verify-fixture', WHATSAPP_APP_SECRET: 'whatsapp-app-secret-fixture' },
   });
   assert.equal(result.status, 0, result.stderr || result.error?.message);
 });

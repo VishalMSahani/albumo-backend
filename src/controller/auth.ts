@@ -33,7 +33,7 @@ const defaultFrontendUrl =
   process.env.VERCEL_URL
     ? `https://${process.env.VERCEL_URL}`
     : process.env.NODE_ENV === "production"
-      ? "https://roboroot.in"
+      ? "https://www.roboroot.in"
       : "http://localhost:3000";
 
 function isLocalhostUrl(url?: string) {
