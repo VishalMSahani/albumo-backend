@@ -10,6 +10,10 @@ let worker: Worker<EmailJobData> | null = null;
 async function processEmailJob(job: Job<EmailJobData>): Promise<void> {
   const { notificationId, email, eventType, templateData } = job.data;
 
+  // Recovered jobs can reappear after a lost queue acknowledgement.
+  const notification = await prisma.emailNotification.findUnique({ where: { id: notificationId }, select: { isSent: true } });
+  if (!notification || notification.isSent) return;
+
   // Generate HTML from template
   const template = getEmailTemplate(eventType, templateData);
 
@@ -19,12 +23,17 @@ async function processEmailJob(job: Job<EmailJobData>): Promise<void> {
   if (result.success) {
     await prisma.emailNotification.update({
       where: { id: notificationId },
-      data: { isSent: true, sentAt: new Date(), error: null },
+      data: {
+        isSent: true, sentAt: new Date(), error: null,
+        ...(eventType === "USER_EMAIL_VERIFICATION" || eventType === "PASSWORD_RESET"
+          ? { subject: "Authentication email", body: "Authentication email delivered.", metadata: {} }
+          : {}),
+      },
     }).catch(() => null);
   } else {
     const msg = result.error ?? "Email send failed";
     // Config errors (bad credentials, no SMTP) are not worth retrying
-    const isConfigError = /not configured|EAUTH|credentials/i.test(msg);
+    const isConfigError = /not configured|EAUTH|credentials|RESEND_API_KEY|domain.*verified/i.test(msg);
     if (isConfigError) {
       await prisma.emailNotification.update({
         where: { id: notificationId },

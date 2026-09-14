@@ -15,7 +15,7 @@ import { cacheInvalidate } from "../../../lib/redis.js";
 import { logAdminAction } from "../../../services/admin-action-log.service.js";
 
 async function bustComponentCache() {
-  await cacheInvalidate("http:/api/components*");
+  await Promise.all([cacheInvalidate("http:/api/components*"), cacheInvalidate("http:/api/projects*")]);
 }
 
 /**

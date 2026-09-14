@@ -4,7 +4,9 @@
  */
 
 import { prisma } from "../../../lib/prisma.js";
-import { NotFoundError, ConflictError } from "../../../utils/types.js";
+import { NotFoundError, ConflictError, ValidationError } from "../../../utils/types.js";
+import { productPricingSchema } from "../validators/product-pricing.js";
+import { productDetailsSchema, productSpecificationsSchema, parseProductDetails } from "../validators/product-details.js";
 import type {
   CreateComponentRequest,
   UpdateComponentRequest,
@@ -59,6 +61,9 @@ function formatComponent(component: any): ComponentResponse {
     name: component.name,
     sku: component.sku,
     description: component.description,
+    specifications: productSpecificationsSchema.safeParse(component.specifications).data ?? [],
+    countryOfOrigin: component.countryOfOrigin ?? null,
+    warranty: component.warranty ?? null,
     typicalUseCase: component.typicalUseCase,
     vendorLink: component.vendorLink,
     imageUrl: component.imageUrl,
@@ -84,6 +89,10 @@ function formatComponent(component: any): ComponentResponse {
  * Create a new component (Admin only)
  */
 export async function createComponent(data: CreateComponentRequest): Promise<ComponentResponse> {
+  const pricing = productPricingSchema.safeParse(data);
+  if (!pricing.success) throw new ValidationError(pricing.error.issues.map(issue => issue.message).join('; '));
+  const details = productDetailsSchema.safeParse(data);
+  if (!details.success) throw new ValidationError(details.error.issues.map(issue => issue.path.join('.') + ': ' + issue.message).join('; '));
   // Check if SKU already exists
   if (data.sku) {
     const existing = await prisma.component.findUnique({
@@ -104,6 +113,7 @@ export async function createComponent(data: CreateComponentRequest): Promise<Com
       slug,
       sku: data.sku || null,
       description: data.description || null,
+      ...parseProductDetails(data),
       typicalUseCase: data.typicalUseCase || null,
       vendorLink: data.vendorLink || null,
       imageUrl: data.imageUrl || null,
@@ -495,6 +505,8 @@ export async function updateComponent(
   id: string,
   data: UpdateComponentRequest
 ): Promise<ComponentResponse> {
+  const details = productDetailsSchema.safeParse(data);
+  if (!details.success) throw new ValidationError(details.error.issues.map(issue => issue.path.join('.') + ': ' + issue.message).join('; '));
   // Check if component exists
   const existing = await prisma.component.findUnique({
     where: { id },
@@ -505,6 +517,9 @@ export async function updateComponent(
   }
 
   // Check if new SKU already exists
+  const pricing = productPricingSchema.safeParse({ ...existing, ...data });
+  if (!pricing.success) throw new ValidationError(pricing.error.issues.map(issue => issue.message).join('; '));
+
   if (data.sku && data.sku !== existing.sku) {
     const skuExists = await prisma.component.findUnique({
       where: { sku: data.sku },
@@ -516,7 +531,7 @@ export async function updateComponent(
   }
 
   // If name changed AND no explicit slug override provided, regenerate slug
-  const updateData: any = { ...data };
+  const updateData = { ...data, ...parseProductDetails(data) };
   if (data.name && data.name !== existing.name && !data.slug) {
     updateData.slug = await generateUniqueSlug(data.name, id);
   } else if (data.slug) {

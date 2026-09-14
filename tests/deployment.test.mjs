@@ -188,8 +188,8 @@ test('deployment checks distinguish production gateway keys from test keys', () 
   const env = {
     NODE_ENV: 'production', DATABASE_URL: 'postgresql://user:password@db.test/store',
     REDIS_URL: 'rediss://cache.test', AZURE_STORAGE_CONNECTION_STRING: 'configured',
-    SMTP_HOST: 'smtp.test', SMTP_USER: 'configured', SMTP_PASS: 'configured',
-    JWT_SECRET: 'a'.repeat(32), JWT_REFRESH_SECRET: 'b'.repeat(32), CRON_SECRET: 'c'.repeat(32),
+    RESEND_API_KEY: 're_test_fixture', EMAIL_FROM: 'noreply@mail.roboroot.in',
+    JWT_SECRET: 'a'.repeat(32), JWT_REFRESH_SECRET: 'b'.repeat(32), AUTH_OTP_SECRET: 'd'.repeat(32), CRON_SECRET: 'c'.repeat(32),
     FRONTEND_URL: 'https://store.test', ADMIN_FRONTEND_URL: 'https://admin.test',
     BACKEND_PUBLIC_URL: 'https://api.test', CORS_ALLOWED_ORIGINS: 'https://store.test,https://admin.test',
     CSRF_ENABLED: 'true', RAZORPAY_KEY_ID: 'rzp_live_fixture', RAZORPAY_KEY_SECRET: 'fixture',

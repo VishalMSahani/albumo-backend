@@ -1,330 +1,70 @@
 import type { Request, Response } from "express";
 import { prisma } from "../lib/prisma.js";
-import { ComponentProductType } from "../generated/prisma/client.js";
 import { uploadFileToAzure, FileType } from "../services/azure-storage.service.js";
-import { generateUniqueSlug } from "../features/components/services/component.service.js";
+import { createComponent, updateComponent } from "../features/components/services/component.service.js";
 import { cacheInvalidate } from "../lib/redis.js";
+import { csvCell, parseProductCsv, productCsvHeaders, productTemplateCsv } from "../features/components/validators/product-csv.js";
 
-// A robust CSV line splitter that respects quotes
-function splitCSVLine(line: string): string[] {
-  const result: string[] = [];
-  let current = "";
-  let inQuotes = false;
-
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-    if (char === '"') {
-      inQuotes = !inQuotes;
-    } else if (char === "," && !inQuotes) {
-      result.push(current.trim());
-      current = "";
-    } else {
-      current += char;
-    }
-  }
-  result.push(current.trim());
-  return result;
-}
-
-// Simple robust CSV parser
-function parseCSV(csvText: string): Record<string, string>[] {
-  const lines: string[] = [];
-  let currentLine = "";
-  let inQuotes = false;
-
-  for (let i = 0; i < csvText.length; i++) {
-    const char = csvText[i];
-    const nextChar = csvText[i + 1];
-
-    if (char === '"') {
-      if (inQuotes && nextChar === '"') {
-        currentLine += '"';
-        i++; // skip next quote
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (char === "\r") {
-      // ignore
-    } else if (char === "\n" && !inQuotes) {
-      lines.push(currentLine);
-      currentLine = "";
-    } else {
-      currentLine += char;
-    }
-  }
-  if (currentLine) {
-    lines.push(currentLine);
-  }
-
-  if (lines.length === 0) return [];
-
-  const headers = splitCSVLine(lines[0] || "");
-  const result: Record<string, string>[] = [];
-
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i];
-    if (!line || !line.trim()) continue;
-    const values = splitCSVLine(line);
-    const row: Record<string, string> = {};
-    headers.forEach((header, index) => {
-      let val = values[index] || "";
-      // Strip outer quotes if any
-      if (val.startsWith('"') && val.endsWith('"')) {
-        val = val.substring(1, val.length - 1);
-      }
-      row[header] = val;
-    });
-    result.push(row);
-  }
-
-  return result;
-}
-
-function getRowValue(row: Record<string, string>, possibleKeys: string[]): string | undefined {
-  const normalizedKeys = possibleKeys.map((k) => k.toLowerCase().replace(/[^a-z0-9]/g, ""));
-  for (const rowKey of Object.keys(row)) {
-    const normRowKey = rowKey.toLowerCase().replace(/[^a-z0-9]/g, "");
-    if (normalizedKeys.includes(normRowKey)) {
-      return row[rowKey]?.trim();
-    }
-  }
-  return undefined;
-}
-
-/**
- * POST /api/admin/products/bulk-import
- * Accepts a CSV file in request body (or text field "csv")
- */
 export async function bulkImportController(req: Request, res: Response): Promise<void> {
+  let rows: ReturnType<typeof parseProductCsv>;
   try {
-    let csvText = "";
-    if (req.file?.buffer) {
-      csvText = req.file.buffer.toString("utf-8");
-    } else if (req.body && typeof req.body === "object" && "csv" in req.body && typeof req.body.csv === "string") {
-      csvText = req.body.csv;
-    } else if (typeof req.body === "string") {
-      csvText = req.body;
-    }
+    const text = req.file?.buffer?.toString("utf-8") || (typeof req.body === "string" ? req.body : typeof req.body?.csv === "string" ? req.body.csv : "");
+    if (text.length > 5 * 1024 * 1024) throw new Error("CSV must be 5 MB or smaller");
+    rows = parseProductCsv(text);
+  } catch (error) {
+    res.status(400).json({ success: false, error: error instanceof Error ? error.message : "Invalid CSV" });
+    return;
+  }
 
-    if (!csvText) {
-      res.status(400).json({ success: false, error: "No CSV content provided" });
-      return;
-    }
-
-    const rows = parseCSV(csvText);
-    if (rows.length === 0) {
-      res.status(400).json({ success: false, error: "CSV is empty or missing headers" });
-      return;
-    }
-
-    let createdCount = 0;
-    let updatedCount = 0;
-
-    // Process all rows sequentially to avoid transaction timeouts
-    for (const row of rows) {
-      const name = getRowValue(row, ["name", "title"]);
-      if (!name) continue; // Skip rows without a name
-
-      // Parse price (Rupees to Cents)
-      const unitPrice = parseFloat(getRowValue(row, ["unitPrice", "price"]) || "0");
-      const unitPriceCents = Math.round(unitPrice * 100);
-
-      const discountedPriceVal = getRowValue(row, ["discountedPrice", "salePrice", "discounted_price"]);
-      const discountedPriceCents = discountedPriceVal
-        ? Math.round(parseFloat(discountedPriceVal) * 100)
-        : null;
-
-      const stockQuantity = parseInt(getRowValue(row, ["stockQuantity", "stock", "stock_quantity"]) || "0", 10);
-      const sku = getRowValue(row, ["sku"]) || null;
-      const description = getRowValue(row, ["description", "desc"]) || null;
-      const typicalUseCase = getRowValue(row, ["typicalUseCase", "typical_use_case"]) || null;
-      const vendorLink = getRowValue(row, ["vendorLink", "vendor_link"]) || null;
-      const imageUrl = getRowValue(row, ["imageUrl", "image_url", "image"]) || null;
-      const category = getRowValue(row, ["category"]) || "Electronics Components";
-      const subcategory = getRowValue(row, ["subcategory"]) || "General";
-      const brand = getRowValue(row, ["brand"]) || null;
-      const slug = getRowValue(row, ["slug"]) || null;
-      const productType = (getRowValue(row, ["productType", "product_type"]) || "ELECTRONICS_COMPONENT") as ComponentProductType;
-
-      const tagsVal = getRowValue(row, ["tags"]);
-      const tags = tagsVal
-        ? tagsVal.split(",").map((t) => t.trim()).filter(Boolean)
-        : [];
-
-      const isBestSellerVal = getRowValue(row, ["isBestSeller", "is_best_seller", "bestseller"]);
-      const isBestSeller = isBestSellerVal === "true" || isBestSellerVal === "1";
-
-      const isRobomaniacItemVal = getRowValue(row, ["isRobomaniacItem", "is_robomaniac_item", "robomaniac"]);
-      const isRobomaniacItem = isRobomaniacItemVal === "true" || isRobomaniacItemVal === "1";
-
-      const isSoftwareVal = getRowValue(row, ["isSoftware", "is_software", "software"]);
-      const isSoftware = isSoftwareVal === "true" || isSoftwareVal === "1";
-
-      const isActiveVal = getRowValue(row, ["isActive", "is_active", "active"]);
-      const isActive = isActiveVal !== "false" && isActiveVal !== "0";
-
-      console.log(`[CSV Import Row Debug] Parsed values for "${name}":`, {
-        sku,
-        description,
-        typicalUseCase,
-        imageUrl,
-        tags,
-      });
-
-      // Try to match by SKU first (since SKU is a unique constraint field), then by ID
-      const id = getRowValue(row, ["id"]) || null;
-      let existing = null;
-
-      if (sku) {
-        existing = await prisma.component.findUnique({ where: { sku } });
-      }
-      if (!existing && id) {
-        existing = await prisma.component.findUnique({ where: { id } });
-      }
-
+  let createdCount = 0, updatedCount = 0;
+  const errors: { row: number; name: string; error: string }[] = [];
+  // All rows are syntactically validated first. Each result is reported; retries match stable SKU/ID.
+  for (const row of rows) {
+    try {
+      const byId = row.id ? await prisma.component.findUnique({ where: { id: row.id } }) : null;
+      const bySku = row.data.sku ? await prisma.component.findUnique({ where: { sku: row.data.sku } }) : null;
+      if (row.id && !byId) throw new Error("Product ID does not exist; remove ID to create a new product");
+      if (byId && bySku && byId.id !== bySku.id) throw new Error("ID and SKU refer to different products");
+      const existing = byId || bySku;
       if (existing) {
-        const updateData: any = {
-          name,
-          sku,
-          description,
-          typicalUseCase,
-          vendorLink,
-          imageUrl,
-          category,
-          subcategory,
-          brand,
-          productType,
-          tags,
-          isBestSeller,
-          isRobomaniacItem,
-          isSoftware,
-          unitPriceCents,
-          discountedPriceCents,
-          stockQuantity,
-          isActive,
-        };
-        if (slug) {
-          updateData.slug = await generateUniqueSlug(slug, existing.id);
-        } else if (name !== existing.name) {
-          updateData.slug = await generateUniqueSlug(name, existing.id);
-        }
-        await prisma.component.update({
-          where: { id: existing.id },
-          data: updateData,
-        });
+        await updateComponent(existing.id, row.data);
         updatedCount++;
       } else {
-        const finalSlug = slug ? await generateUniqueSlug(slug) : await generateUniqueSlug(name);
-        await prisma.component.create({
-          data: {
-            name,
-            slug: finalSlug,
-            sku,
-            description,
-            typicalUseCase,
-            vendorLink,
-            imageUrl,
-            category,
-            subcategory,
-            brand,
-            productType,
-            tags,
-            isBestSeller,
-            isRobomaniacItem,
-            isSoftware,
-            unitPriceCents,
-            discountedPriceCents,
-            stockQuantity,
-            isActive,
-          },
-        });
+        await createComponent(row.data);
         createdCount++;
       }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to save this row";
+      errors.push({ row: row.rowNumber, name: row.data.name, error: /prisma|invocation|database/i.test(message) ? "Could not save this row; check duplicate SKU/slug or retry" : message });
     }
-
-    // Invalidate components cache so updates reflect immediately
-    await cacheInvalidate("http:/api/components*");
-
-    res.status(200).json({
-      success: true,
-      message: `Bulk import completed successfully. Created ${createdCount} new products, updated ${updatedCount} existing products.`,
-      data: { createdCount, updatedCount },
-    });
-  } catch (error) {
-    console.error("Bulk import error:", error);
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : "Internal server error during bulk import",
-    });
   }
+  if (createdCount || updatedCount) await Promise.all([cacheInvalidate("http:/api/components*"), cacheInvalidate("http:/api/projects*")]);
+  res.status(200).json({
+    success: errors.length === 0,
+    message: `Created ${createdCount}, updated ${updatedCount}, failed ${errors.length}. Successful rows have been saved.`,
+    data: { createdCount, updatedCount, errors },
+  });
 }
 
-/**
- * GET /api/admin/products/export
- * Exports all products to a downloadable CSV
- */
-export async function bulkExportController(req: Request, res: Response): Promise<void> {
+export async function productTemplateController(_req: Request, res: Response): Promise<void> {
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", 'attachment; filename="roboroot-product-template.csv"');
+  res.status(200).send(productTemplateCsv());
+}
+
+export async function bulkExportController(_req: Request, res: Response): Promise<void> {
   try {
-    const products = await prisma.component.findMany({
-      orderBy: { name: "asc" },
+    const products = await prisma.component.findMany({ orderBy: { name: "asc" } });
+    const rows = products.map(product => {
+      const values: Record<string, unknown> = { ...product, unitPrice: (product.unitPriceCents / 100).toFixed(2),
+        discountedPrice: product.discountedPriceCents == null ? "" : (product.discountedPriceCents / 100).toFixed(2),
+        tags: product.tags.join(","), specifications: JSON.stringify(product.specifications ?? []) };
+      return productCsvHeaders.map(key => csvCell(values[key])).join(",");
     });
-
-    const headers = [
-      "id",
-      "name",
-      "slug",
-      "sku",
-      "category",
-      "subcategory",
-      "brand",
-      "productType",
-      "unitPrice",
-      "discountedPrice",
-      "stockQuantity",
-      "isBestSeller",
-      "isRobomaniacItem",
-      "isSoftware",
-      "isActive",
-      "tags",
-      "imageUrl",
-      "description",
-      "typicalUseCase",
-      "vendorLink",
-    ];
-
-    const csvRows = [headers.join(",")];
-
-    for (const p of products) {
-      const row = [
-        p.id,
-        `"${p.name.replace(/"/g, '""')}"`,
-        p.slug ? `"${p.slug.replace(/"/g, '""')}"` : "",
-        p.sku ? `"${p.sku.replace(/"/g, '""')}"` : "",
-        `"${p.category.replace(/"/g, '""')}"`,
-        `"${p.subcategory.replace(/"/g, '""')}"`,
-        p.brand ? `"${p.brand.replace(/"/g, '""')}"` : "",
-        p.productType,
-        (p.unitPriceCents / 100).toFixed(2),
-        p.discountedPriceCents ? (p.discountedPriceCents / 100).toFixed(2) : "",
-        p.stockQuantity.toString(),
-        p.isBestSeller ? "true" : "false",
-        p.isRobomaniacItem ? "true" : "false",
-        p.isSoftware ? "true" : "false",
-        p.isActive ? "true" : "false",
-        `"${p.tags.join(",").replace(/"/g, '""')}"`,
-        p.imageUrl ? `"${p.imageUrl.replace(/"/g, '""')}"` : "",
-        p.description ? `"${p.description.replace(/"/g, '""').replace(/\n/g, " ")}"` : "",
-        p.typicalUseCase ? `"${p.typicalUseCase.replace(/"/g, '""').replace(/\n/g, " ")}"` : "",
-        p.vendorLink ? `"${p.vendorLink.replace(/"/g, '""')}"` : "",
-      ];
-      csvRows.push(row.join(","));
-    }
-
-    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", 'attachment; filename="roboroot-catalog-export.csv"');
-    res.status(200).send(csvRows.join("\n"));
-  } catch (error) {
-    console.error("Export error:", error);
+    res.status(200).send([productCsvHeaders.join(","), ...rows].join("\r\n"));
+  } catch {
     res.status(500).json({ success: false, error: "Failed to export catalog" });
   }
 }

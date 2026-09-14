@@ -24,14 +24,18 @@ import {
 import {
   getDeliverySettingsHandler,
   updateDeliverySettingsHandler,
+  getProductSettingsHandler,
+  updateProductSettingsHandler,
 } from "../features/settings/controllers/store-settings.controller.js";
 import { authenticate, authorize } from "../middlewares/auth.middleware.js";
 import { validate } from "../middlewares/validate.middleware.js";
+import { asyncHandler } from "../utils/async-handler.js";
 import {
   adminCustomerIdParamsSchema,
   adminCustomerListQuerySchema,
   adminCustomerStatusBodySchema,
   adminDeliverySettingsBodySchema,
+  adminProductSettingsBodySchema,
   adminRoleMutationBodySchema,
 } from "../validators/admin.validator.js";
 
@@ -47,6 +51,8 @@ router.post("/demote", validate({ body: adminRoleMutationBodySchema }), demoteFr
 router.get("/list", listAdminsController);
 
 // Store settings
+router.get('/settings/products', asyncHandler(getProductSettingsHandler));
+router.patch('/settings/products', validate({ body: adminProductSettingsBodySchema }), asyncHandler(updateProductSettingsHandler));
 router.get("/settings/delivery", getDeliverySettingsHandler);
 router.patch(
   "/settings/delivery",

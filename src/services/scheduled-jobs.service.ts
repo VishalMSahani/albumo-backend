@@ -1,4 +1,5 @@
 import cron from "node-cron";
+import { recoverAuthEmails } from "./auth-email.service.js";
 import { prisma } from "../lib/prisma.js";
 import { logger } from "../lib/logger.js";
 import { getStockQueue, getTrackingQueue } from "../lib/queue.js";
@@ -65,9 +66,12 @@ export async function cancelStaleOrders() {
 
 export async function cleanupSessions() {
   try {
-    const result = await prisma.session.deleteMany({
-      where: { expiresAt: { lt: new Date() } },
-    });
+    const [result] = await prisma.$transaction([
+      prisma.session.deleteMany({ where: { expiresAt: { lt: new Date() } } }),
+      prisma.authChallenge.deleteMany({ where: { expiresAt: { lt: new Date(Date.now() - 86_400_000) } } }),
+      prisma.authThrottle.deleteMany({ where: { expiresAt: { lt: new Date() } } }),
+      prisma.passwordResetToken.deleteMany({ where: { expiresAt: { lt: new Date() } } }),
+    ]);
     logger.info("expired sessions deleted", { count: result.count });
   } catch (err) {
     logger.error("session cleanup failed", { error: err });
@@ -125,6 +129,7 @@ export async function cleanupStagedUploads() {
 }
 
 export const scheduledJobs = [
+  { name: "recoverAuthEmails", schedule: "* * * * *", interval: 60000, run: recoverAuthEmails },
   { name: "cleanupStagedUploads", schedule: "17 3 * * *", interval: 86400000, run: cleanupStagedUploads },
   { name: "cancelStaleOrders", schedule: "*/5 * * * *", interval: 300000, run: cancelStaleOrders },
   { name: "cleanupSessions", schedule: "7 3 * * *", interval: 86400000, run: cleanupSessions },

@@ -4,6 +4,9 @@
  */
 
 import type { Request, Response } from 'express';
+import { projectFiltersSchema } from '../validators/project.schema.js';
+import type { ProjectFilters } from '../types/project.types.js';
+import { projectError } from './project-error.js';
 import { cacheInvalidate } from '../../../lib/redis.js';
 
 async function bustProjectCache() {
@@ -11,8 +14,7 @@ async function bustProjectCache() {
 }
 import {
   validateCreateProject,
-  validateUpdateProject,
-  validateProjectFilters
+  validateUpdateProject
 } from '../validators/project.validator.js';
 import {
   createProject,
@@ -36,50 +38,27 @@ import { ProjectCategory } from '../../../generated/prisma/enums.js';
  * GET /api/projects
  * List projects with filters and pagination
  */
-export async function handleListProjects(req: Request, res: Response): Promise<void> {
+async function respondWithProjects(req: Request, res: Response, admin: boolean): Promise<void> {
   try {
-    const filters = {
-      category: req.query.category as any,
-      difficulty: req.query.difficulty as any,
-      projectType: req.query.projectType as any,
-      tags: req.query.tags as any,
-      isFeatured: req.query.isFeatured === 'true' ? true : req.query.isFeatured === 'false' ? false : undefined,
-      isPublic: req.query.isPublic === 'true' ? true : req.query.isPublic === 'false' ? false : undefined,
-      isAIGenerated: req.query.isAIGenerated === 'true' ? true : req.query.isAIGenerated === 'false' ? false : undefined,
-      preBuiltAvailable: req.query.preBuiltAvailable === 'true' ? true : req.query.preBuiltAvailable === 'false' ? false : undefined,
-      minCost: req.query.minCost ? Number(req.query.minCost) : undefined,
-      maxCost: req.query.maxCost ? Number(req.query.maxCost) : undefined,
-      minBuildTime: req.query.minBuildTime ? Number(req.query.minBuildTime) : undefined,
-      maxBuildTime: req.query.maxBuildTime ? Number(req.query.maxBuildTime) : undefined,
-      search: req.query.search as string,
-      page: req.query.page ? Number(req.query.page) : 1,
-      limit: req.query.limit ? Number(req.query.limit) : 20,
-      sortBy: req.query.sortBy as any,
-      sortOrder: req.query.sortOrder as any
-    };
-
-    const validation = validateProjectFilters(filters);
-    if (!validation.success) {
-      res.status(400).json({
-        success: false,
-        errors: validation.errors
-      });
-      return;
-    }
-
-    const result = await listProjects(validation.data!);
-
-    res.status(200).json({
-      success: true,
-      data: result
-    });
-  } catch (error: any) {
-    console.error('Error listing projects:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to list projects'
-    });
-  }
+    const parsed = projectFiltersSchema.parse(req.query);
+    const filters = Object.fromEntries(Object.entries(parsed).filter(([, value]) => value !== undefined)) as ProjectFilters;
+    if (!admin) filters.isPublic = true;
+    const result = await listProjects(filters);
+    res.json({ success: true, data: result });
+  } catch (error) { projectError(res, error); }
+}
+export async function handleListProjects(req: Request, res: Response): Promise<void> {
+  await respondWithProjects(req, res, false);
+}
+export async function handleAdminListProjects(req: Request, res: Response): Promise<void> {
+  await respondWithProjects(req, res, true);
+}
+export async function handleAdminGetProject(req: Request, res: Response): Promise<void> {
+  try {
+    const project = await getProjectById(req.params.id!, true);
+    if (!project) { res.status(404).json({ success: false, error: 'Project not found' }); return; }
+    res.json({ success: true, data: project });
+  } catch (error) { projectError(res, error); }
 }
 
 /**
@@ -100,7 +79,7 @@ export async function handleGetProjectById(req: Request, res: Response): Promise
 
     const project = await getProjectById(id, true); // Include components
 
-    if (!project) {
+    if (!project || !project.isPublic) {
       res.status(404).json({
         success: false,
         error: 'Project not found'
@@ -142,7 +121,7 @@ export async function handleGetProjectBySlug(req: Request, res: Response): Promi
 
     const project = await getProjectBySlug(slug, true); // Include components
 
-    if (!project) {
+    if (!project || !project.isPublic) {
       res.status(404).json({
         success: false,
         error: 'Project not found'
@@ -257,21 +236,8 @@ export async function handleCreateProject(req: Request, res: Response): Promise<
       data: project,
       message: 'Project created successfully'
     });
-  } catch (error: any) {
-    console.error('Error creating project:', error);
-    
-    if (error.message.includes('already exists')) {
-      res.status(409).json({
-        success: false,
-        error: error.message
-      });
-      return;
-    }
-
-    res.status(500).json({
-      success: false,
-      error: 'Failed to create project'
-    });
+  } catch (error) {
+    projectError(res, error);
   }
 }
 
@@ -309,29 +275,8 @@ export async function handleUpdateProject(req: Request, res: Response): Promise<
       data: project,
       message: 'Project updated successfully'
     });
-  } catch (error: any) {
-    console.error('Error updating project:', error);
-
-    if (error.message === 'Project not found') {
-      res.status(404).json({
-        success: false,
-        error: 'Project not found'
-      });
-      return;
-    }
-
-    if (error.message.includes('already exists')) {
-      res.status(409).json({
-        success: false,
-        error: error.message
-      });
-      return;
-    }
-
-    res.status(500).json({
-      success: false,
-      error: 'Failed to update project'
-    });
+  } catch (error) {
+    projectError(res, error);
   }
 }
 

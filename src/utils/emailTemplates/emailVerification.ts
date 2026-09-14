@@ -1,58 +1,42 @@
 import { wrapTemplate, type EmailTemplate } from "./base.js";
 
-export function emailVerificationTemplate(data: {
-  user: {
-    name: string;
-  };
-  verificationLink: string;
+type VerificationEmailData = {
+  user: { name: string };
+  verificationCode?: string;
+  verificationLink?: string;
+  verifyUrl?: string;
   expiresIn?: string;
-}): EmailTemplate {
-  const content = `
-    <h1>Verify Your Email Address 📧</h1>
-    <p>Hi ${data.user.name || "there"},</p>
-    <p>
-      Thanks for signing up! To complete your registration and access all RoboRoot features,
-      please verify your email address by clicking the button below.
-    </p>
+};
 
-    <p class="text-center">
-      <a href="${data.verificationLink}" class="button">Verify Email Address</a>
-    </p>
+export function emailVerificationTemplate(data: VerificationEmailData): EmailTemplate {
+  const name = data.user.name || "there";
+  if (data.verificationCode) {
+    const expiresIn = data.expiresIn || "10 minutes";
+    const content = `
+      <h1>Verify your email address</h1>
+      <p>Hi ${name},</p>
+      <p>Enter this one-time code on RoboRoot to verify your email address:</p>
+      <p class="text-center" style="font-size: 34px; line-height: 1.2; letter-spacing: 0.28em; font-weight: 700; color: #203c2e; margin: 28px 0;">${data.verificationCode}</p>
+      <div class="info-box">
+        <p><strong>This code expires in ${expiresIn}.</strong></p>
+        <p>Never share this code. RoboRoot support will never ask for it.</p>
+      </div>
+      <p>If you did not create this account, you can safely ignore this email.</p>
+      <p>Best regards,<br>The RoboRoot Team</p>
+    `;
+    return {
+      subject: `${data.verificationCode} is your RoboRoot verification code`,
+      html: wrapTemplate(content),
+      text: `Your RoboRoot email verification code is ${data.verificationCode}. It expires in ${expiresIn}. Never share this code.`,
+    };
+  }
 
-    <div class="info-box">
-      <p><strong>⏰ This link will expire in ${data.expiresIn || "24 hours"}.</strong></p>
-      <p>If you didn't create an account with RoboRoot, you can safely ignore this email.</p>
-    </div>
-
-    <p>
-      If the button doesn't work, copy and paste this link into your browser:
-    </p>
-    <p style="word-break: break-all; color: #667eea;">
-      ${data.verificationLink}
-    </p>
-
-    <p>
-      Best regards,<br>
-      The RoboRoot Team
-    </p>
-  `;
-
+  // Render already-queued links during the short migration window; new requests never use this branch.
+  const legacyLink = data.verificationLink || data.verifyUrl;
+  if (!legacyLink) throw new Error("Email verification code is required");
   return {
-    subject: "Verify Your RoboRoot Email Address",
-    html: wrapTemplate(content),
-    text: `Verify Your Email Address 📧
-
-Hi ${data.user.name || "there"},
-
-Thanks for signing up! To complete your registration and access all RoboRoot features, please verify your email address.
-
-Verification Link: ${data.verificationLink}
-
-⏰ This link will expire in ${data.expiresIn || "24 hours"}.
-
-If you didn't create an account with RoboRoot, you can safely ignore this email.
-
-Best regards,
-The RoboRoot Team`,
+    subject: "Verify your RoboRoot email address",
+    html: wrapTemplate(`<h1>Verify your email address</h1><p>Hi ${name},</p><p class="text-center"><a href="${legacyLink}" class="button">Verify email address</a></p><p>This link expires in ${data.expiresIn || "24 hours"}.</p>`),
+    text: `Verify your RoboRoot email address: ${legacyLink}`,
   };
 }

@@ -7,6 +7,12 @@ import {
 import { EmailEventType } from "../generated/prisma/client.js";
 import { getEmailQueue } from "../lib/queue.js";
 
+function deliveredAuthEmailData(eventType: EmailEventType) {
+  return eventType === EmailEventType.USER_EMAIL_VERIFICATION || eventType === EmailEventType.PASSWORD_RESET
+    ? { subject: "Authentication email", body: "Authentication email delivered.", metadata: {} }
+    : {};
+}
+
 /**
  * Create an email notification record in database
  */
@@ -73,9 +79,15 @@ export async function sendEmailNotification(
         userId: userId ?? null,
         email,
         eventType,
-        subject: template.subject,
-        body: template.html,
-        metadata: templateData as any,
+        subject: result.success && (eventType === EmailEventType.USER_EMAIL_VERIFICATION || eventType === EmailEventType.PASSWORD_RESET)
+          ? "Authentication email"
+          : template.subject,
+        body: result.success && (eventType === EmailEventType.USER_EMAIL_VERIFICATION || eventType === EmailEventType.PASSWORD_RESET)
+          ? "Authentication email delivered."
+          : template.html,
+        metadata: result.success && (eventType === EmailEventType.USER_EMAIL_VERIFICATION || eventType === EmailEventType.PASSWORD_RESET)
+          ? {}
+          : templateData as any,
         isSent: result.success,
         sentAt: result.success ? new Date() : null,
         error: result.error ?? null,
@@ -192,6 +204,7 @@ export async function processPendingEmails(limit: number = 50): Promise<{
             isSent: true,
             sentAt: new Date(),
             error: null,
+            ...deliveredAuthEmailData(notification.eventType),
           },
         });
         successful++;
@@ -276,6 +289,7 @@ export async function retryEmailNotification(notificationId: string): Promise<{
           isSent: true,
           sentAt: new Date(),
           error: null,
+          ...deliveredAuthEmailData(notification.eventType),
         },
       });
       return { success: true };

@@ -8,6 +8,9 @@ export interface CreateComponentRequest {
   slug?: string;
   sku?: string;
   description?: string;
+  specifications?: { label: string; value: string }[];
+  countryOfOrigin?: string | null;
+  warranty?: string | null;
   typicalUseCase?: string;
   vendorLink?: string;
   imageUrl?: string;
@@ -30,6 +33,9 @@ export interface UpdateComponentRequest {
   slug?: string; // Allow manual slug override from admin
   sku?: string;
   description?: string;
+  specifications?: { label: string; value: string }[];
+  countryOfOrigin?: string | null;
+  warranty?: string | null;
   typicalUseCase?: string;
   vendorLink?: string;
   imageUrl?: string;
@@ -71,6 +77,9 @@ export interface ComponentResponse {
   name: string;
   sku: string | null;
   description: string | null;
+  specifications: { label: string; value: string }[];
+  countryOfOrigin: string | null;
+  warranty: string | null;
   typicalUseCase: string | null;
   vendorLink: string | null;
   imageUrl: string | null;

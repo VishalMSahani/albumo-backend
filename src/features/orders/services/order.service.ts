@@ -1,4 +1,5 @@
 import { prisma } from "../../../lib/prisma.js";
+import { sellingPrice } from "../../../utils/product-price.js";
 import {
   EmailEventType,
   OrderItemType,
@@ -179,7 +180,7 @@ export async function createOrder(input: CreateOrderInput) {
 
     const subtotalCents = normalizedItems.reduce((sum, item) => {
       const component = componentById.get(item.componentId);
-      return sum + (component?.unitPriceCents || 0) * item.quantity;
+      return sum + (component ? sellingPrice(component) : 0) * item.quantity;
     }, 0);
 
     const shippingCents = calculateDeliveryFee(subtotalCents, deliverySettings);
@@ -245,8 +246,8 @@ export async function createOrder(input: CreateOrderInput) {
               componentId: component.id,
               description: component.name,
               quantity: item.quantity,
-              unitPriceCents: component.unitPriceCents,
-              subtotalCents: component.unitPriceCents * item.quantity,
+              unitPriceCents: sellingPrice(component),
+              subtotalCents: sellingPrice(component) * item.quantity,
             };
           }),
         },

@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export const adminProductSettingsBodySchema = z.object({ productReviewsEnabled: z.boolean() }).strict();
+
 export const adminRoleMutationBodySchema = z.object({
   email: z.string().trim().toLowerCase().email(),
 });

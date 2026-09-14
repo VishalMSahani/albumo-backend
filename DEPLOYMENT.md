@@ -16,8 +16,8 @@ CommonJS dependencies, and runtime assets correctly.
 
 Use `.env.production.example` as the checklist for the new Vercel project's
 Production environment variables. The local `.env` is for development and is not
-uploaded. Keep the actual database, Redis, Azure, SMTP, and gateway credentials in
-Vercel, not in Git. Generate independent JWT and cron secrets of at least 32
+uploaded. Keep the actual database, Redis, Azure, Resend/SMTP, and gateway credentials in
+Vercel, not in Git. Generate independent JWT, OTP-HMAC, and cron secrets of at least 32
 characters. Use the real gateway webhook signing secrets from the providers.
 The deployment checker rejects Razorpay test keys for production; use live keys
 when accepting real payments. Test-mode credentials can still be used locally.

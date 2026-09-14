@@ -351,18 +351,22 @@ enum ComponentRelationType {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  name      String?
-  email     String   @unique
-  avatarUrl String?
-  role      UserRole @default(STUDENT)
-  college   String?
+  id              String    @id @default(cuid())
+  name            String?
+  email           String    @unique
+  phone           String?   @unique
+  pendingPhone    String?   @unique
+  phoneVerifiedAt DateTime? @db.Timestamptz(6)
+  avatarUrl       String?
+  role            UserRole  @default(STUDENT)
+  college         String?
 
   isActive Boolean @default(true)
 
-  emailVerified     Boolean   @default(false)
-  emailVerifyToken  String?   @unique
-  emailVerifyExpiry DateTime?
+  emailVerified       Boolean   @default(false)
+  emailVerifyToken    String?   @unique
+  emailVerifyExpiry   DateTime?
+  emailVerifyAttempts Int       @default(0)
 
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
@@ -452,11 +456,14 @@ model EmailCredential {
 // Optional but recommended for production if you don't want pure stateless JWT.
 // You can also drop this and go full JWT if you prefer.
 model Session {
-  id        String  @id @default(cuid())
-  userId    String
-  token     String  @unique // random session token / JWT id
-  userAgent String?
-  ipAddress String?
+  id             String    @id @default(cuid())
+  userId         String
+  token          String    @unique // random session token / JWT id
+  userAgent      String?
+  ipAddress      String?
+  refreshVersion Int       @default(0)
+  rotatedAt      DateTime? @db.Timestamptz(6)
+  revokedAt      DateTime? @db.Timestamptz(6)
 
   expiresAt DateTime @db.Timestamptz(6)
   createdAt DateTime @default(now()) @db.Timestamptz(6)
@@ -479,6 +486,34 @@ model PasswordResetToken {
 
   @@index([userId])
   @@index([token])
+}
+
+// Short-lived challenges; OTPs and registration proofs are only stored as hashes.
+model AuthChallenge {
+  id          String    @id @default(cuid())
+  phone       String
+  purpose     String
+  userId      String?
+  codeHash    String
+  proofHash   String?   @unique
+  attempts    Int       @default(0)
+  expiresAt   DateTime  @db.Timestamptz(6)
+  deliveredAt DateTime? @db.Timestamptz(6)
+  verifiedAt  DateTime? @db.Timestamptz(6)
+  consumedAt  DateTime? @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([phone, purpose, createdAt])
+  @@index([expiresAt])
+}
+
+// Shared across instances, including serverless deployments without Redis.
+model AuthThrottle {
+  key       String   @id
+  count     Int      @default(0)
+  expiresAt DateTime @db.Timestamptz(6)
+
+  @@index([expiresAt])
 }
 
 model EmailNotification {
@@ -530,6 +565,8 @@ model Project {
 
   // Pricing & Time
   estimatedCostCents        Int? // DIY kit cost in paise/cents
+  costEstimateMinCents      Int?
+  costEstimateMaxCents      Int?
   estimatedBuildTimeMinutes Int? // Time to complete
 
   // Pre-Built Option (Admin builds and lists)
@@ -540,7 +577,12 @@ model Project {
 
   // Media
   thumbnailUrl String?
+  heroImageUrl String?
+  heroVideoUrl String?
+  imageUrls    String[] @default([])
+  pdfUrls      String[] @default([])
   youtubeUrl   String? // YouTube tutorial video URL
+  externalLinks Json?
 
   // Visibility & Status
   isFeatured    Boolean   @default(false) // Show on homepage
@@ -579,6 +621,7 @@ model Project {
   orders            Order[]
   mentorSessions    MentorSession[]
   fileUploads       FileUpload[]
+  contentSections   ProjectContentSection[]
 
   @@index([projectType, isPublic])
   @@index([category])
@@ -605,6 +648,28 @@ model ProjectStep {
 
   @@unique([projectId, stepNumber])
   @@index([projectId])
+}
+
+model ProjectContentSection {
+  id          String   @id @default(cuid())
+  projectId   String
+  sectionKey  String
+  heading     String
+  body        String   @db.Text
+  sortOrder   Int      @default(0)
+  diagramUrl  String?
+  code        String?  @db.Text
+  repoUrl     String?
+  steps       Json?
+  faqs        Json?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  @@unique([projectId, sectionKey])
+  @@index([projectId, sortOrder])
 }
 
 model ProjectDocumentBundle {
@@ -645,6 +710,8 @@ model ProjectComponent {
   componentId String
   quantity    Int     @default(1)
   notes       String?
+  isOptional  Boolean @default(false)
+  note        String?
 
   project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   component Component @relation(fields: [componentId], references: [id], onDelete: Restrict)
@@ -701,6 +768,9 @@ model Component {
   sku            String? @unique
   description    String? @db.Text
   typicalUseCase String?
+  specifications Json    @default("[]")
+  countryOfOrigin String?
+  warranty        String? @db.Text
   vendorLink     String?
   imageUrl       String?
 
@@ -1138,6 +1208,7 @@ model MentorSession {
 
 model StoreSetting {
   id                         Int               @id @default(1)
+  productReviewsEnabled      Boolean           @default(false)
   deliveryFeeEnabled         Boolean           @default(true)
   deliveryFeeCents           Int               @default(5000)
   freeDeliveryThresholdCents Int               @default(50000)

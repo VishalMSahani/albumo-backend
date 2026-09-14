@@ -16,6 +16,8 @@ export interface ProjectComponentInput {
   componentId: string;
   quantity: number;
   notes?: string; // Optional notes about component usage
+  note?: string;
+  isOptional?: boolean;
 }
 
 /**
@@ -26,6 +28,8 @@ export interface ProjectComponentDetail {
   componentId: string;
   quantity: number;
   notes?: string;
+  note?: string;
+  isOptional: boolean;
   component: {
     id: string;
     name: string;
@@ -46,83 +50,12 @@ export interface ProjectComponentDetail {
 // REQUEST TYPES
 // ============================================================================
 
-export interface CreateProjectRequest {
-  // Basic Info
-  title: string;
-  slug?: string; // Auto-generated from title if not provided
-  summary?: string;
-  description: string;
-  
-  // Categorization
-  category: ProjectCategory;
-  tags?: string[];
-  
-  // Project Details
-  difficulty: DifficultyLevel;
-  projectType?: ProjectType;
-  
-  // Pricing & Time
-  estimatedCostCents?: number;
-  estimatedBuildTimeMinutes?: number;
-  
-  // Pre-Built Option
-  preBuiltAvailable?: boolean;
-  preBuiltStock?: number;
-  preBuiltPriceCents?: number;
-  preBuiltImages?: string[];
-  
-  // Media
-  thumbnailUrl?: string;
-  youtubeUrl?: string;
-  
-  // Learning Info
-  learningOutcomes?: string[];
-  prerequisites?: string[];
-  
-  // Visibility
-  isFeatured?: boolean;
-  isPublic?: boolean;
-  
-  // Relations
-  defaultMentorId?: string;
-  components?: ProjectComponentInput[]; // Components used in project with quantities
-  componentIds?: string[]; // Backward compatibility - simple ID array (defaults to quantity 1)
-}
-
-export interface UpdateProjectRequest {
-  title?: string;
-  slug?: string;
-  summary?: string;
-  description?: string;
-  
-  category?: ProjectCategory;
-  tags?: string[];
-  
-  difficulty?: DifficultyLevel;
-  projectType?: ProjectType;
-  
-  estimatedCostCents?: number;
-  estimatedBuildTimeMinutes?: number;
-  
-  preBuiltAvailable?: boolean;
-  preBuiltStock?: number;
-  preBuiltPriceCents?: number;
-  preBuiltImages?: string[];
-  
-  thumbnailUrl?: string;
-  youtubeUrl?: string;
-  
-  learningOutcomes?: string[];
-  prerequisites?: string[];
-  
-  isFeatured?: boolean;
-  isPublic?: boolean;
-  
-  defaultMentorId?: string;
-  components?: ProjectComponentInput[]; // Update component list (replaces existing)
-}
+export type CreateProjectRequest = import('zod').infer<typeof import('../validators/project.schema.js').createProjectSchema>;
+export type UpdateProjectRequest = import('zod').infer<typeof import('../validators/project.schema.js').updateProjectSchema>;
+export type ProjectContentSectionInput = import('zod').infer<typeof import('../validators/project.schema.js').projectSectionSchema>;
 
 export interface ProjectFilters {
+  componentId?: string;
   // Category & Type
   category?: ProjectCategory | ProjectCategory[];
   difficulty?: DifficultyLevel | DifficultyLevel[];
@@ -192,6 +125,8 @@ export interface ProjectResponse {
   projectType: ProjectType;
   
   estimatedCostCents?: number;
+  costEstimateMinCents?: number;
+  costEstimateMaxCents?: number;
   estimatedCost?: number; // In rupees
   estimatedBuildTimeMinutes?: number;
   estimatedBuildTimeDisplay?: string; // "2 hours" or "3 days"
@@ -200,10 +135,12 @@ export interface ProjectResponse {
   preBuiltAvailable: boolean;
   preBuiltStock: number;
   preBuiltPriceCents?: number;
+  heroImageUrl?: string;
+  heroVideoUrl?: string;
   preBuiltPrice?: number; // In rupees
   preBuiltImages: string[];
   preBuiltSavings?: number; // If pre-built is cheaper than building
-  
+
   thumbnailUrl?: string;
   imageUrls: string[]; // Project gallery images (max 5)
   youtubeUrl?: string;
@@ -236,6 +173,7 @@ export interface ProjectResponse {
     expertise: string[];
   };
   components?: ProjectComponentDetail[]; // List of required components
+  contentSections?: ProjectContentSectionResponse[];
   
   // Computed
   componentsCount?: number;
@@ -260,6 +198,19 @@ export interface ProjectListResponse {
     difficulties: Array<{ difficulty: DifficultyLevel; count: number }>;
     priceRange: { min: number; max: number };
   };
+}
+
+export interface ProjectContentSectionResponse {
+  id: string;
+  sectionKey: 'components' | 'wiring' | 'code' | 'troubleshooting';
+  heading: string;
+  body: string;
+  sortOrder: number;
+  diagramUrl?: string;
+  code?: string;
+  repoUrl?: string;
+  steps: Array<{ title: string; body: string }>;
+  faqs: Array<{ question: string; answer: string }>;
 }
 
 export interface ProjectDetailResponse extends Omit<ProjectResponse, 'components'> {

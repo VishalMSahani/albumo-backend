@@ -7,8 +7,12 @@ import { Router } from 'express';
 import { authenticate, authorize } from '../../../middlewares/auth.middleware.js';
 import { cacheResponse } from '../../../middlewares/cache.middleware.js';
 import { uploadProjectFiles } from '../../../middlewares/upload.middleware.js';
+import { validate } from '../../../middlewares/validate.middleware.js';
+import { createProjectSchema, updateProjectSchema, projectFiltersSchema, projectIdParamsSchema } from '../validators/project.schema.js';
 import {
   handleListProjects,
+  handleAdminListProjects,
+  handleAdminGetProject,
   handleGetProjectById,
   handleGetProjectBySlug,
   handleGetCategories,
@@ -53,7 +57,10 @@ const router: Router = Router();
  * - sortBy: 'createdAt' | 'updatedAt' | 'title' | 'viewCount' | 'buildCount' | 'averageRating' | 'estimatedCostCents'
  * - sortOrder: 'asc' | 'desc' (default: 'desc')
  */
-router.get('/', cacheResponse(60), handleListProjects);
+router.get('/', validate({ query: projectFiltersSchema }), cacheResponse(60), handleListProjects);
+// Admin reads are uncached and may include unpublished drafts.
+router.get('/admin', authenticate, authorize('ADMIN'), validate({ query: projectFiltersSchema }), handleAdminListProjects);
+router.get('/admin/:id', authenticate, authorize('ADMIN'), validate({ params: projectIdParamsSchema }), handleAdminGetProject);
 
 /**
  * GET /api/projects/categories
@@ -118,7 +125,7 @@ router.get('/:id', handleGetProjectById);
  * - defaultMentorId: string (optional, UUID)
  * - componentIds: string[] (optional, component UUIDs)
  */
-router.post('/', authenticate, authorize('ADMIN'), handleCreateProject);
+router.post('/', authenticate, authorize('ADMIN'), validate({ body: createProjectSchema }), handleCreateProject);
 
 /**
  * POST /api/projects/upload
@@ -155,7 +162,7 @@ router.post('/upload', authenticate, authorize('ADMIN'), uploadProjectFiles, han
  * - id: string (project UUID)
  * Body: Same as POST but all fields optional
  */
-router.put('/:id', authenticate, authorize('ADMIN'), handleUpdateProject);
+router.put('/:id', authenticate, authorize('ADMIN'), validate({ body: updateProjectSchema }), handleUpdateProject);
 
 /**
  * PUT /api/projects/:id/upload

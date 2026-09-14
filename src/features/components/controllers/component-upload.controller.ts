@@ -6,6 +6,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { uploadFileToAzure, FileType, UPLOAD_LIMITS } from '../../../services/azure-storage.service.js';
 import * as componentService from '../services/component.service.js';
+import { productDetailsSchema, parseProductDetails } from '../validators/product-details.js';
 
 // Define multer file structure
 interface MulterFiles {
@@ -25,6 +26,11 @@ export async function handleCreateComponentWithUploads(
 ): Promise<void> {
   try {
     const files = req.files as MulterFiles;
+    const details = productDetailsSchema.safeParse(req.body);
+    if (!details.success) {
+      res.status(400).json({ success: false, error: details.error.issues.map(issue => issue.path.join('.') + ': ' + issue.message).join('; ') });
+      return;
+    }
     const {
       name,
       sku,
@@ -126,6 +132,7 @@ export async function handleCreateComponentWithUploads(
     const componentData: Record<string, unknown> = {
       name,
       unitPriceCents: parseInt(unitPriceCents, 10),
+      ...parseProductDetails(req.body),
     };
 
     // Attach image URL only when we actually uploaded something

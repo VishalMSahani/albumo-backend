@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import type { Request, Response, NextFunction } from "express";
 import { logger } from "../lib/logger.js";
+import { secureDeployment } from "../utils/auth-security.js";
 
 /**
  * CSRF Protection — Double-Submit Cookie Pattern
@@ -48,22 +49,18 @@ function isExempt(path: string): boolean {
  * Call this on page load or after login.
  */
 export function csrfTokenHandler(req: Request, res: Response): void {
-  const token = crypto.randomBytes(TOKEN_BYTES).toString("hex");
-  const isProd = process.env.NODE_ENV === "production";
-
-  const cookieDomain = process.env.COOKIE_DOMAIN?.trim();
+  const existing = (req.cookies as Record<string, string> | undefined)?.[CSRF_COOKIE];
+  const token = existing && /^[a-f0-9]{64}$/.test(existing) ? existing : crypto.randomBytes(TOKEN_BYTES).toString("hex");
+  const isProd = secureDeployment();
+  res.setHeader("Cache-Control", "no-store");
 
   const cookieOpts: Record<string, unknown> = {
     httpOnly: false,  // Frontend JS must be able to read this
     secure: isProd,
-    sameSite: isProd ? "none" : "lax",
+    sameSite: "lax",
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
     path: "/",
   };
-
-  if (isProd && cookieDomain) {
-    cookieOpts.domain = cookieDomain;
-  }
 
   res.cookie(CSRF_COOKIE, token, cookieOpts);
 
@@ -80,9 +77,9 @@ export function csrfTokenHandler(req: Request, res: Response): void {
 export function csrfProtection(req: Request, res: Response, next: NextFunction): void {
   // Check if CSRF is enabled
   const csrfEnabled =
-    process.env.CSRF_ENABLED !== undefined
+    secureDeployment() || (process.env.CSRF_ENABLED !== undefined
       ? process.env.CSRF_ENABLED === "true"
-      : process.env.NODE_ENV === "production";
+      : false);
 
   if (!csrfEnabled) {
     next();

@@ -8,6 +8,7 @@ import cookieParser from "cookie-parser";
 import { rateLimit } from "express-rate-limit";
 import { registerScheduledJobs } from "./services/scheduled-jobs.service.js";
 import { logger } from "./lib/logger.js";
+import { secureDeployment } from "./utils/auth-security.js";
 import { prisma } from "./lib/prisma.js";
 import { redis } from "./lib/redis.js";
 import { startEmailWorker, stopEmailWorker } from "./workers/email-bullmq-worker.js";
@@ -63,7 +64,7 @@ app.use((req: Request, res: Response, next) => {
 });
 
 const PORT = process.env.PORT || 4000;
-const NODE_ENV = process.env.NODE_ENV || "development";
+const NODE_ENV = secureDeployment() ? "production" : (process.env.NODE_ENV || "development");
 
 // Security middleware
 app.use(helmet({

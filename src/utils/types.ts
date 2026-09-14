@@ -4,6 +4,7 @@ export interface SignupRequest {
   email: string;
   password: string;
   name?: string;
+  phone?: string;
   college?: string;
   legalConsent: {
     accepted: true;
@@ -44,10 +45,15 @@ export interface AuthResponse {
     role: string;
     avatarUrl: string | null;
     college: string | null;
+    phone?: string | null;
+    pendingPhone?: string | null;
+    phoneVerified?: boolean;
+    emailVerified?: boolean;
   };
   accessToken: string;
   refreshToken: string;
   expiresIn: number;
+  sessionExpiresAt: string;
 }
 
 export interface TokenPair {
@@ -70,6 +76,13 @@ export class ValidationError extends AuthError {
   constructor(message: string) {
     super(message, 400, "VALIDATION_ERROR");
     this.name = "ValidationError";
+  }
+}
+
+// This contact is disclosed only after the password has been validated.
+export class EmailVerificationRequiredError extends AuthError {
+  constructor(public email: string) {
+    super("Verify your email before signing in, or use WhatsApp verification.", 403, "VERIFICATION_REQUIRED");
   }
 }
 

@@ -3,6 +3,7 @@ import multer from "../middlewares/upload-transport.middleware.js";
 import {
   bulkImportController,
   bulkExportController,
+  productTemplateController,
   aiGenerateProductController,
   bulkUploadMediaController,
   getMediaLibraryController,
@@ -12,12 +13,14 @@ import { authenticate, authorize } from "../middlewares/auth.middleware.js";
 
 const router: Router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
+const csvUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 1 } });
 
 // All bulk operations require admin/super_admin privileges
 const adminGuard = [authenticate, authorize("ADMIN", "SUPER_ADMIN")];
 
 // Bulk Import CSV
-router.post("/bulk-import", ...adminGuard, upload.single("file"), bulkImportController);
+router.post("/bulk-import", ...adminGuard, csvUpload.single("file"), bulkImportController);
+router.get("/template", ...adminGuard, productTemplateController);
 
 // Export Catalog CSV
 router.get("/export", ...adminGuard, bulkExportController);

@@ -3,6 +3,20 @@ import { prisma } from "../../../lib/prisma.js";
 export const DEFAULT_DELIVERY_FEE_CENTS = 5000;
 export const DEFAULT_FREE_DELIVERY_THRESHOLD_CENTS = 50000;
 
+export async function getProductSettings() {
+  const settings = await prisma.storeSetting.findUnique({ where: { id: 1 }, select: { productReviewsEnabled: true } });
+  return { productReviewsEnabled: settings?.productReviewsEnabled ?? false };
+}
+
+export async function updateProductSettings(productReviewsEnabled: boolean) {
+  return prisma.storeSetting.upsert({
+    where: { id: 1 },
+    create: { id: 1, productReviewsEnabled },
+    update: { productReviewsEnabled },
+    select: { productReviewsEnabled: true },
+  });
+}
+
 export type DeliveryFeeRule = {
   id: string;
   minOrderCents: number;

@@ -4,15 +4,27 @@ import { readFileSync } from 'node:fs';
 export function checkDeployment(env) {
   const errors = [];
   if (env.NODE_ENV !== 'production') errors.push('NODE_ENV must be production');
-  for (const key of ['DATABASE_URL', 'REDIS_URL', 'AZURE_STORAGE_CONNECTION_STRING', 'SMTP_HOST', 'SMTP_USER', 'SMTP_PASS']) {
+  for (const key of ['DATABASE_URL', 'REDIS_URL', 'AZURE_STORAGE_CONNECTION_STRING']) {
     if (!env[key]?.trim()) errors.push(`${key} is required`);
   }
+  const resendConfigured = Boolean(env.RESEND_API_KEY?.trim());
+  const smtpValues = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'].map(key => env[key]?.trim());
+  const smtpConfigured = smtpValues.every(Boolean);
+  if (!resendConfigured && !smtpConfigured) errors.push('RESEND_API_KEY or a complete SMTP configuration is required');
+  if (!resendConfigured && smtpValues.some(Boolean) && !smtpConfigured) errors.push('SMTP_HOST, SMTP_USER and SMTP_PASS must all be set when using SMTP');
+  if (resendConfigured && !env.EMAIL_FROM?.trim()) errors.push('EMAIL_FROM is required when using Resend');
   for (const key of ['JWT_SECRET', 'JWT_REFRESH_SECRET', 'CRON_SECRET']) {
     if ((env[key]?.length ?? 0) < 32 || /your-|change-in-production/i.test(env[key] ?? '')) {
       errors.push(`${key} must contain a non-placeholder secret of at least 32 characters`);
     }
   }
   if (env.JWT_SECRET === env.JWT_REFRESH_SECRET) errors.push('JWT secrets must be different');
+  if ((env.AUTH_OTP_SECRET?.length ?? 0) < 32 || /your-|replace-|change-in-production/i.test(env.AUTH_OTP_SECRET ?? '')) {
+    errors.push('AUTH_OTP_SECRET must be a non-placeholder random secret of at least 32 characters');
+  }
+  if (env.AUTH_OTP_SECRET && [env.JWT_SECRET, env.JWT_REFRESH_SECRET].includes(env.AUTH_OTP_SECRET)) {
+    errors.push('AUTH_OTP_SECRET must be independent of JWT secrets');
+  }
   for (const key of ['FRONTEND_URL', 'ADMIN_FRONTEND_URL', 'BACKEND_PUBLIC_URL']) {
     try {
       const url = new URL(env[key]);
@@ -48,6 +60,12 @@ export function checkDeployment(env) {
     for (const key of ['WHATSAPP_WEBHOOK_VERIFY_TOKEN', 'WHATSAPP_APP_SECRET']) {
       if (!env[key]) errors.push(`${key} is required when the WhatsApp webhook is configured`);
     }
+  }
+  if (env.WHATSAPP_OTP_ENABLED === 'true') {
+    if (!env.WHATSAPP_ACCESS_TOKEN?.trim()) errors.push('WHATSAPP_ACCESS_TOKEN is required for OTP');
+    if (!/^\d+$/.test(env.WHATSAPP_PHONE_NUMBER_ID ?? '')) errors.push('WHATSAPP_PHONE_NUMBER_ID must be the sending phone-number ID');
+    if (!/^v\d+\.\d+$/.test(env.WHATSAPP_API_VERSION ?? '')) errors.push('WHATSAPP_API_VERSION must be an explicit supported Graph API version');
+    if (!/^[a-z0-9_]+$/.test(env.WHATSAPP_AUTH_TEMPLATE_NAME ?? '')) errors.push('WHATSAPP_AUTH_TEMPLATE_NAME must be an approved authentication template name');
   }
   return errors;
 }

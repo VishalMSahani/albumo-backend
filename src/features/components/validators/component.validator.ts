@@ -9,6 +9,7 @@ import type {
   UpdateComponentRequest,
   ComponentFilters,
 } from "../types/component.types.js";
+import { productDetailsSchema, parseProductDetails } from './product-details.js';
 
 export interface ValidationResult<T> {
   success: boolean;
@@ -78,6 +79,8 @@ function parseBoolean(value: unknown): boolean | undefined {
  */
 export function validateCreateComponent(data: any): ValidationResult<CreateComponentRequest> {
   const errors: string[] = [];
+  const details = productDetailsSchema.safeParse(data);
+  if (!details.success) errors.push(...details.error.issues.map(issue => issue.path.join('.') + ': ' + issue.message));
 
   // Name validation
   if (!data.name || typeof data.name !== "string" || data.name.trim().length === 0) {
@@ -158,6 +161,7 @@ export function validateCreateComponent(data: any): ValidationResult<CreateCompo
   const result: CreateComponentRequest = {
     name: data.name.trim(),
     unitPriceCents: Math.round(data.unitPriceCents),
+    ...parseProductDetails(data),
   };
 
   if (data.slug?.trim()) result.slug = data.slug.trim();
@@ -200,6 +204,8 @@ export function validateCreateComponent(data: any): ValidationResult<CreateCompo
  */
 export function validateUpdateComponent(data: any): ValidationResult<UpdateComponentRequest> {
   const errors: string[] = [];
+  const details = productDetailsSchema.safeParse(data);
+  if (!details.success) errors.push(...details.error.issues.map(issue => issue.path.join('.') + ': ' + issue.message));
 
   // At least one field must be provided
   if (Object.keys(data).length === 0) {
@@ -283,7 +289,7 @@ export function validateUpdateComponent(data: any): ValidationResult<UpdateCompo
     };
   }
 
-  const updateData: UpdateComponentRequest = {};
+  const updateData: UpdateComponentRequest = parseProductDetails(data);
 
   if (data.name !== undefined) updateData.name = data.name.trim();
   if (data.slug !== undefined) updateData.slug = data.slug?.trim() || undefined;

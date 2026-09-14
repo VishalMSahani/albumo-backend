@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import { logger } from "../lib/logger.js";
-import { ValidationError, AuthError } from "../utils/types.js";
+import { ValidationError, AuthError, EmailVerificationRequiredError } from "../utils/types.js";
 
 /**
  * Global error handler middleware
@@ -12,8 +12,9 @@ export function errorHandler(
   next: NextFunction
 ): void {
   logger.error("request failed", {
-    message: error.message,
-    stack: error.stack,
+    // Database diagnostics can include query arguments containing auth secrets.
+    message: req.path.startsWith("/api/auth/") && !(error instanceof AuthError) ? "Authentication operation failed" : error.message,
+    ...(req.path.startsWith("/api/auth/") ? { errorName: error.name } : { stack: error.stack }),
     path: req.path,
     method: req.method,
   });
@@ -24,6 +25,7 @@ export function errorHandler(
       success: false,
       error: error.message,
       code: error.code,
+      ...(error instanceof EmailVerificationRequiredError ? { data: { email: error.email } } : {}),
     });
     return;
   }

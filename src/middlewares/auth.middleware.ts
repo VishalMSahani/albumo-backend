@@ -1,152 +1,37 @@
 import type { Request, Response, NextFunction } from "express";
 import { verifyAccessToken } from "../utils/jwt.js";
-import { UnauthorizedError, ForbiddenError } from "../utils/types.js";
-import type { JWTPayload } from "../utils/types.js";
+import { prisma } from "../lib/prisma.js";
+import { UnauthorizedError, ForbiddenError, type JWTPayload } from "../utils/types.js";
+declare global { namespace Express { interface Request { user?: JWTPayload; } } }
 
-// Extend Express Request type to include user property
-declare global {
-  namespace Express {
-    interface Request {
-      user?: JWTPayload;
-    }
+async function resolveUser(req: Request): Promise<JWTPayload> {
+  const header = req.headers.authorization;
+  const token = header ? (/^Bearer ([^ ]+)$/.exec(header)?.[1]) : (req.cookies as Record<string, string> | undefined)?.accessToken;
+  if (!token) throw new UnauthorizedError("Please sign in to continue");
+  const decoded = verifyAccessToken(token);
+  const session = await prisma.session.findUnique({ where: { id: decoded.sessionId! }, include: { user: true } });
+  if (!session || session.userId !== decoded.userId || session.revokedAt || session.expiresAt.getTime() <= Date.now() || !session.user.isActive) throw new UnauthorizedError("Session expired. Please sign in again.");
+  return { ...decoded, role: session.user.role, email: session.user.email };
+}
+
+export async function authenticate(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try { req.user = await resolveUser(req); next(); }
+  catch (error) {
+    if (error instanceof UnauthorizedError) res.status(401).json({ success: false, error: error.message, code: "UNAUTHORIZED" });
+    else next(error);
   }
 }
 
-/**
- * Middleware to authenticate requests using JWT
- */
-export function authenticate(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): void {
-  try {
-    // Explicit admin/mobile credentials take precedence over storefront cookies.
-    const cookieToken = (req.cookies as Record<string, string>)?.accessToken;
-    const authHeader = req.headers.authorization;
-    let token: string | undefined;
-
-    if (authHeader) {
-      const parts = authHeader.split(" ");
-      if (parts.length !== 2 || parts[0] !== "Bearer") {
-        throw new UnauthorizedError("Invalid authorization header format. Use: Bearer <token>");
-      }
-      token = parts[1];
-    } else if (cookieToken) {
-      token = cookieToken;
-    }
-
-    if (!token) {
-      throw new UnauthorizedError("No authorization token provided");
-    }
-
-    // Verify and decode token
-    const decoded = verifyAccessToken(token);
-
-    // Attach user info to request
-    req.user = decoded;
-
-    next();
-  } catch (error) {
-    if (error instanceof UnauthorizedError) {
-      res.status(error.statusCode).json({
-        success: false,
-        error: error.message,
-        code: error.code,
-      });
-      return;
-    }
-
-    res.status(401).json({
-      success: false,
-      error: "Authentication failed",
-      code: "AUTHENTICATION_FAILED",
-    });
-  }
-}
-
-/**
- * Middleware to check if user has required role
- */
-export function authorize(...allowedRoles: string[]) {
+export function authorize(...roles: string[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
-    try {
-      if (!req.user) {
-        throw new UnauthorizedError("User not authenticated");
-      }
-
-      // SUPER_ADMIN inherits all ADMIN permissions
-      const effectiveRoles = allowedRoles.includes("ADMIN")
-        ? [...allowedRoles, "SUPER_ADMIN"]
-        : allowedRoles;
-
-      if (!effectiveRoles.includes(req.user.role)) {
-        throw new ForbiddenError(
-          `Access denied. Required roles: ${allowedRoles.join(", ")}`
-        );
-      }
-
-      next();
-    } catch (error) {
-      if (error instanceof ForbiddenError) {
-        res.status(error.statusCode).json({
-          success: false,
-          error: error.message,
-          code: error.code,
-        });
-        return;
-      }
-
-      if (error instanceof UnauthorizedError) {
-        res.status(error.statusCode).json({
-          success: false,
-          error: error.message,
-          code: error.code,
-        });
-        return;
-      }
-
-      res.status(500).json({
-        success: false,
-        error: "Authorization failed",
-        code: "AUTHORIZATION_FAILED",
-      });
-    }
+    if (!req.user) { next(new UnauthorizedError()); return; }
+    if (!roles.includes(req.user.role) && !(roles.includes("ADMIN") && req.user.role === "SUPER_ADMIN")) { next(new ForbiddenError("You do not have permission for this action")); return; }
+    next();
   };
 }
 
-/**
- * Optional authentication - doesn't fail if no token provided
- * Just attaches user info if valid token exists
- */
-export function optionalAuthenticate(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): void {
-  try {
-    // Match authenticate: explicit credentials take precedence over cookies.
-    const cookieToken = (req.cookies as Record<string, string>)?.accessToken;
-    const authHeader = req.headers.authorization;
-    let token: string | undefined;
-
-    if (authHeader) {
-      const parts = authHeader.split(" ");
-      if (parts.length === 2 && parts[0] === "Bearer") {
-        token = parts[1];
-      }
-    } else if (cookieToken) {
-      token = cookieToken;
-    }
-
-    if (token) {
-      const decoded = verifyAccessToken(token);
-      req.user = decoded;
-    }
-
-    next();
-  } catch (error) {
-    // Silently fail for optional authentication
-    next();
-  }
+export async function optionalAuthenticate(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try { req.user = await resolveUser(req); }
+  catch (error) { if (!(error instanceof UnauthorizedError)) { next(error); return; } }
+  next();
 }

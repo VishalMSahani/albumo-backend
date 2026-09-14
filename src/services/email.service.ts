@@ -1,68 +1,97 @@
 import nodemailer, { type Transporter } from "nodemailer";
 import type { EmailTemplate } from "../utils/email-templates.js";
 
-const SMTP_HOST = process.env.SMTP_HOST || "smtp.gmail.com";
-const SMTP_PORT = parseInt(process.env.SMTP_PORT || "587");
-const SMTP_SECURE = process.env.SMTP_SECURE === "true";
-const SMTP_USER = process.env.SMTP_USER || "";
-const SMTP_PASS = process.env.SMTP_PASS || "";
-const FROM_EMAIL = process.env.FROM_EMAIL || SMTP_USER;
-const FROM_NAME = process.env.FROM_NAME || "RoboRoot";
-const IS_DEV = process.env.NODE_ENV !== "production";
+const RESEND_ENDPOINT = "https://api.resend.com/emails";
+const DEFAULT_FROM_EMAIL = "noreply@mail.roboroot.in";
+
+export type EmailAttachment = {
+  filename: string;
+  content: string | Buffer;
+  contentType?: string;
+};
+
+export type EmailSendResult = {
+  success: boolean;
+  messageId?: string;
+  error?: string;
+  previewUrl?: string;
+};
 
 let transporter: Transporter | null = null;
-let transporterVerified = false;
+let transporterKey = "";
 
-async function buildTransporter(): Promise<Transporter> {
-  // If we have SMTP credentials, try them first
-  if (SMTP_USER && SMTP_PASS) {
-    const t = nodemailer.createTransport({
-      host: SMTP_HOST,
-      port: SMTP_PORT,
-      secure: SMTP_SECURE,
-      auth: { user: SMTP_USER, pass: SMTP_PASS },
-    });
+function sender(): string {
+  const address = process.env.EMAIL_FROM?.trim()
+    || process.env.FROM_EMAIL?.trim()
+    || (process.env.RESEND_API_KEY?.trim() ? DEFAULT_FROM_EMAIL : process.env.SMTP_USER?.trim())
+    || DEFAULT_FROM_EMAIL;
+  const name = process.env.EMAIL_FROM_NAME?.trim() || process.env.FROM_NAME?.trim() || "RoboRoot";
+  return `${name} <${address}>`;
+}
 
-    try {
-      await t.verify();
-      transporterVerified = true;
-      console.log("✅ SMTP transporter ready");
-      return t;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (IS_DEV) {
-        console.warn(`⚠️  SMTP credentials invalid (${msg.split("\n")[0]})`);
-        console.warn("📧 Falling back to Ethereal test account for development");
-      } else {
-        // In production, fail hard so the operator knows immediately
-        throw new Error(`SMTP configuration error: ${msg}`);
-      }
-    }
+export function emailDeliveryConfigured(): boolean {
+  return Boolean(process.env.RESEND_API_KEY?.trim()
+    || (process.env.SMTP_USER?.trim() && process.env.SMTP_PASS?.trim()));
+}
+
+async function sendWithResend(
+  apiKey: string,
+  to: string,
+  subject: string,
+  html: string,
+  text: string,
+  attachments?: EmailAttachment[],
+): Promise<EmailSendResult> {
+  const response = await fetch(RESEND_ENDPOINT, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: sender(),
+      to: [to],
+      subject,
+      html,
+      text,
+      ...(attachments?.length ? {
+        attachments: attachments.map(attachment => ({
+          filename: attachment.filename,
+          content: Buffer.isBuffer(attachment.content)
+            ? attachment.content.toString("base64")
+            : Buffer.from(attachment.content).toString("base64"),
+          ...(attachment.contentType ? { content_type: attachment.contentType } : {}),
+        })),
+      } : {}),
+    }),
+    signal: AbortSignal.timeout(10_000),
+  });
+
+  const body = await response.json().catch(() => null) as { id?: string; message?: string; name?: string } | null;
+  if (!response.ok || !body?.id) {
+    throw new Error(`Resend delivery failed (${response.status}): ${body?.message || body?.name || "Unknown provider error"}`);
   }
-
-  // Dev fallback: Ethereal
-  if (IS_DEV) {
-    const testAccount = await nodemailer.createTestAccount();
-    const t = nodemailer.createTransport({
-      host: "smtp.ethereal.email",
-      port: 587,
-      secure: false,
-      auth: { user: testAccount.user, pass: testAccount.pass },
-    });
-    transporterVerified = true;
-    console.log("📧 Ethereal test account ready — preview emails at https://ethereal.email");
-    console.log(`   User: ${testAccount.user}  Pass: ${testAccount.pass}`);
-    return t;
-  }
-
-  throw new Error("Email not configured. Set SMTP_USER and SMTP_PASS in .env");
+  return { success: true, messageId: body.id };
 }
 
 async function getTransporter(): Promise<Transporter> {
-  if (!transporter || !transporterVerified) {
-    transporter = await buildTransporter();
+  const host = process.env.SMTP_HOST?.trim() || "smtp.gmail.com";
+  const port = Number.parseInt(process.env.SMTP_PORT || "587", 10);
+  const secure = process.env.SMTP_SECURE === "true";
+  const user = process.env.SMTP_USER?.trim() || "";
+  const pass = process.env.SMTP_PASS?.trim() || "";
+  if (!user || !pass) {
+    throw new Error("Email is not configured. Set RESEND_API_KEY or SMTP_USER and SMTP_PASS.");
   }
-  return transporter;
+
+  const key = `${host}:${port}:${secure}:${user}`;
+  if (transporter && transporterKey === key) return transporter;
+
+  const next = nodemailer.createTransport({ host, port, secure, auth: { user, pass } });
+  await next.verify();
+  transporter = next;
+  transporterKey = key;
+  return next;
 }
 
 export async function sendEmail(
@@ -70,62 +99,48 @@ export async function sendEmail(
   subject: string,
   html: string,
   text: string,
-  attachments?: Array<{ filename: string; content: any; contentType?: string }>
-): Promise<{ success: boolean; messageId?: string; error?: string; previewUrl?: string }> {
+  attachments?: EmailAttachment[],
+): Promise<EmailSendResult> {
   try {
-    const t = await getTransporter();
+    const resendApiKey = process.env.RESEND_API_KEY?.trim();
+    if (resendApiKey) {
+      return await sendWithResend(resendApiKey, to, subject, html, text, attachments);
+    }
 
-    const info = await t.sendMail({
-      from: `"${FROM_NAME}" <${FROM_EMAIL}>`,
-      to,
-      subject,
-      text,
-      html,
-      attachments,
-    });
-
-    console.log(`✅ Email sent: ${info.messageId}`);
-
-    const previewUrl = nodemailer.getTestMessageUrl(info) || undefined;
-    if (previewUrl) console.log(`📧 Preview: ${previewUrl}`);
-
-    const successResult: { success: boolean; messageId?: string; error?: string; previewUrl?: string } = { success: true, messageId: info.messageId };
-    if (previewUrl) successResult.previewUrl = previewUrl;
-    return successResult;
+    const smtp = await getTransporter();
+    const info = await smtp.sendMail({ from: sender(), to, subject, text, html, attachments });
+    return { success: true, messageId: info.messageId };
   } catch (error) {
-    const msg = error instanceof Error ? error.message : "Unknown error";
-    console.error("❌ Email send failed:", msg);
-    return { success: false, error: msg };
+    const message = error instanceof Error ? error.message : "Unknown email delivery error";
+    console.error("Email delivery failed:", message);
+    return { success: false, error: message };
   }
 }
 
-export async function sendTemplateEmail(
-  to: string,
-  template: EmailTemplate
-): Promise<{ success: boolean; messageId?: string; error?: string; previewUrl?: string }> {
+export async function sendTemplateEmail(to: string, template: EmailTemplate): Promise<EmailSendResult> {
   return sendEmail(to, template.subject, template.html, template.text || "");
 }
 
 export async function sendBulkEmails(
   emails: Array<{ to: string; template: EmailTemplate }>,
-  delayMs = 100
-): Promise<Array<{ to: string; success: boolean; messageId?: string; error?: string }>> {
-  const results: Array<{ to: string; success: boolean; messageId?: string; error?: string }> = [];
-
+  delayMs = 100,
+): Promise<Array<{ to: string } & EmailSendResult>> {
+  const results: Array<{ to: string } & EmailSendResult> = [];
   for (const email of emails) {
-    const result = await sendTemplateEmail(email.to, email.template);
-    results.push({ to: email.to, ...result });
-    if (delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
+    results.push({ to: email.to, ...await sendTemplateEmail(email.to, email.template) });
+    if (delayMs > 0) await new Promise(resolve => setTimeout(resolve, delayMs));
   }
-
   return results;
 }
 
 export async function testEmailConfiguration(): Promise<{ success: boolean; message: string }> {
+  if (process.env.RESEND_API_KEY?.trim()) {
+    return { success: true, message: "Resend email delivery is configured" };
+  }
   try {
     await getTransporter();
-    return { success: true, message: "Email configuration is valid" };
+    return { success: true, message: "SMTP email delivery is configured" };
   } catch (error) {
-    return { success: false, message: error instanceof Error ? error.message : "Unknown error" };
+    return { success: false, message: error instanceof Error ? error.message : "Unknown email configuration error" };
   }
 }

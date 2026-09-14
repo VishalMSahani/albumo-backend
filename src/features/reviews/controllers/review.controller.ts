@@ -27,6 +27,7 @@ export async function getComponentReviewsHandler(req: Request, res: Response): P
   const page = Math.max(1, Number(req.query.page) || 1);
   const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 10));
   const data = await reviewService.getComponentReviews(componentId, page, limit);
+  res.setHeader('Cache-Control', 'no-store');
   res.json({ success: true, data });
 }
 
@@ -69,6 +70,7 @@ export async function uploadReviewImageHandler(
 ): Promise<void> {
   try {
     const file = req.file;
+    await reviewService.assertReviewsEnabled();
     if (!file) {
       res.status(400).json({ success: false, error: "No image file provided" });
       return;

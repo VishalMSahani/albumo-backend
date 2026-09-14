@@ -10,9 +10,11 @@ import type {
   UpdateProjectRequest,
   ProjectFilters,
   ProjectResponse,
-  ProjectListResponse
+  ProjectListResponse,
+  ProjectContentSectionInput
 } from '../types/project.types.js';
 import { generateSlug } from '../validators/project.validator.js';
+import { createProjectSchema, updateProjectSchema } from '../validators/project.schema.js';
 import { CATEGORY_INFO, DIFFICULTY_DISPLAY } from '../types/project.types.js';
 
 // ============================================================================
@@ -90,9 +92,11 @@ function transformProjectToResponse(project: any, includeCreator: boolean = fals
     difficultyDisplay,
     projectType: project.projectType,
     
-    estimatedCostCents: project.estimatedCostCents || undefined,
+    estimatedCostCents: project.estimatedCostCents ?? undefined,
+    costEstimateMinCents: project.costEstimateMinCents ?? undefined,
+    costEstimateMaxCents: project.costEstimateMaxCents ?? undefined,
     estimatedCost,
-    estimatedBuildTimeMinutes: project.estimatedBuildTimeMinutes || undefined,
+    estimatedBuildTimeMinutes: project.estimatedBuildTimeMinutes ?? undefined,
     estimatedBuildTimeDisplay,
     
     preBuiltAvailable: project.preBuiltAvailable,
@@ -103,6 +107,8 @@ function transformProjectToResponse(project: any, includeCreator: boolean = fals
     preBuiltSavings,
     
     thumbnailUrl: project.thumbnailUrl || undefined,
+    heroImageUrl: project.heroImageUrl || undefined,
+    heroVideoUrl: project.heroVideoUrl || undefined,
     imageUrls: project.imageUrls || [],
     youtubeUrl: project.youtubeUrl || undefined,
     youtubeEmbedUrl,
@@ -125,6 +131,21 @@ function transformProjectToResponse(project: any, includeCreator: boolean = fals
     createdAt: project.createdAt,
     updatedAt: project.updatedAt
   };
+
+  if (project.contentSections && Array.isArray(project.contentSections)) {
+    response.contentSections = project.contentSections.map((section: any) => ({
+      id: section.id,
+      sectionKey: section.sectionKey,
+      heading: section.heading,
+      body: section.body,
+      sortOrder: section.sortOrder,
+      diagramUrl: section.diagramUrl || undefined,
+      code: section.code || undefined,
+      repoUrl: section.repoUrl || undefined,
+      steps: Array.isArray(section.steps) ? section.steps : [],
+      faqs: Array.isArray(section.faqs) ? section.faqs : [],
+    }));
+  }
 
   // Add creator info if included
   if (includeCreator && project.createdBy) {
@@ -157,14 +178,18 @@ function transformProjectToResponse(project: any, includeCreator: boolean = fals
         componentId: pc.componentId,
         quantity: pc.quantity,
         notes: pc.notes || undefined,
+        note: pc.note || pc.notes || undefined,
+        isOptional: pc.isOptional,
         component: {
           id: pc.component.id,
           name: pc.component.name,
+          slug: pc.component.slug || undefined,
           sku: pc.component.sku || undefined,
           description: pc.component.description || undefined,
           typicalUseCase: pc.component.typicalUseCase || undefined,
           vendorLink: pc.component.vendorLink || undefined,
           imageUrl: pc.component.imageUrl || undefined,
+          imageUrls: pc.component.imageUrls || [],
           unitPriceCents: pc.component.unitPriceCents,
           unitPrice,
           stockQuantity: pc.component.stockQuantity,
@@ -187,6 +212,10 @@ function buildFilterConditions(filters: ProjectFilters) {
   const where: any = { deletedAt: null };
 
   // Category filter
+  if (filters.componentId) {
+    where.projectComponents = { some: { componentId: filters.componentId, component: { isActive: true } } };
+  }
+
   if (filters.category) {
     where.category = Array.isArray(filters.category)
       ? { in: filters.category }
@@ -269,106 +298,45 @@ function buildFilterConditions(filters: ProjectFilters) {
 /**
  * Create a new project
  */
-export async function createProject(data: CreateProjectRequest, createdById: string): Promise<ProjectResponse> {
-  // Generate slug if not provided
+function definedFields<T extends object>(value: T): { [K in keyof T]: Exclude<T[K], undefined> } {
+  return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined)) as { [K in keyof T]: Exclude<T[K], undefined> };
+}
+
+function componentData(component: { componentId: string; quantity: number; note?: string | undefined; notes?: string | undefined; isOptional?: boolean | undefined }) {
+  return { componentId: component.componentId, quantity: component.quantity,
+    notes: component.note || component.notes || null, note: component.note || component.notes || null,
+    isOptional: component.isOptional ?? false };
+}
+
+function sectionData(section: ProjectContentSectionInput) {
+  return { sectionKey: section.sectionKey, heading: section.heading, body: section.body, sortOrder: section.sortOrder ?? 0,
+    diagramUrl: section.diagramUrl || null, code: section.code || null, repoUrl: section.repoUrl || null,
+    steps: section.steps ?? [], faqs: section.faqs ?? [] };
+}
+
+export async function createProject(input: CreateProjectRequest, createdById: string): Promise<ProjectResponse> {
+  const data = createProjectSchema.parse(input);
   const slug = data.slug || generateSlug(data.title);
-
-  // Check if slug already exists
-  const existingProject = await prisma.project.findUnique({
-    where: { slug }
+  if (!slug) throw new Error('Provide a URL slug using letters and numbers');
+  const { components, componentIds, contentSections, ...fields } = data;
+  const rows = components ?? componentIds?.map(componentId => ({ componentId, quantity: 1 })) ?? [];
+  const project = await prisma.$transaction(async tx => {
+    const existing = await tx.project.findUnique({ where: { slug } });
+    if (existing) throw new Error(`A project with slug "${slug}" already exists`);
+    return tx.project.create({
+      data: {
+        ...definedFields(fields), slug, createdById, tags: data.tags ?? [], learningOutcomes: data.learningOutcomes ?? [], prerequisites: data.prerequisites ?? [],
+        preBuiltAvailable: data.preBuiltAvailable ?? false,
+        preBuiltPriceCents: data.preBuiltAvailable ? data.preBuiltPriceCents ?? null : null,
+        preBuiltStock: data.preBuiltAvailable ? data.preBuiltStock ?? 0 : 0,
+        preBuiltImages: data.preBuiltImages ?? [], imageUrls: data.imageUrls ?? [], pdfUrls: data.pdfUrls ?? [],
+        projectComponents: { create: rows.map(componentData) },
+        contentSections: { create: (contentSections ?? []).map(sectionData) },
+      },
+      include: { createdBy: true, defaultMentor: true, projectComponents: { include: { component: true } }, contentSections: { orderBy: { sortOrder: 'asc' } } },
+    });
   });
-
-  if (existingProject) {
-    throw new Error(`A project with slug "${slug}" already exists`);
-  }
-
-  // Create project
-  const project = await prisma.project.create({
-    data: {
-      title: data.title,
-      slug,
-      summary: data.summary || null,
-      description: data.description || null,
-      
-      category: data.category,
-      tags: data.tags || [],
-      
-      difficulty: data.difficulty,
-      projectType: data.projectType || 'FEATURED',
-      
-      estimatedCostCents: data.estimatedCostCents || null,
-      estimatedBuildTimeMinutes: data.estimatedBuildTimeMinutes || null,
-      
-      preBuiltAvailable: data.preBuiltAvailable || false,
-      preBuiltStock: data.preBuiltStock || 0,
-      preBuiltPriceCents: data.preBuiltPriceCents || null,
-      preBuiltImages: data.preBuiltImages || [],
-      
-      thumbnailUrl: data.thumbnailUrl || null,
-      youtubeUrl: data.youtubeUrl || null,
-      
-      learningOutcomes: data.learningOutcomes || [],
-      prerequisites: data.prerequisites || [],
-      
-      isFeatured: data.isFeatured || false,
-      isPublic: data.isPublic !== undefined ? data.isPublic : true,
-      isAIGenerated: false, // Manual projects are not AI generated
-      
-      createdById,
-      defaultMentorId: data.defaultMentorId || null
-    },
-    include: {
-      createdBy: true,
-      defaultMentor: true
-    }
-  });
-
-  // If component IDs are provided, create project-component relations
-  if (data.components && data.components.length > 0) {
-    // New format with quantities
-    await Promise.all(
-      data.components.map((comp) =>
-        prisma.projectComponent.create({
-          data: {
-            projectId: project.id,
-            componentId: comp.componentId,
-            quantity: comp.quantity,
-            notes: comp.notes || null
-          }
-        })
-      )
-    );
-  } else if (data.componentIds && data.componentIds.length > 0) {
-    // Backward compatibility - simple ID array
-    await Promise.all(
-      data.componentIds.map((componentId) =>
-        prisma.projectComponent.create({
-          data: {
-            projectId: project.id,
-            componentId,
-            quantity: 1, // Default quantity
-            notes: null
-          }
-        })
-      )
-    );
-  }
-
-  // Re-fetch project with components to include in response
-  const projectWithComponents = await prisma.project.findUnique({
-    where: { id: project.id },
-    include: {
-      createdBy: true,
-      defaultMentor: true,
-      projectComponents: {
-        include: {
-          component: true
-        }
-      }
-    }
-  });
-
-  return transformProjectToResponse(projectWithComponents!, true);
+  return transformProjectToResponse(project, true);
 }
 
 /**
@@ -384,7 +352,8 @@ export async function getProjectById(projectId: string, includeComponents: boole
         include: {
           component: true
         }
-      } : false
+      } : false,
+      contentSections: includeComponents ? { orderBy: { sortOrder: 'asc' } } : false
     }
   });
 
@@ -408,7 +377,8 @@ export async function getProjectBySlug(slug: string, includeComponents: boolean 
         include: {
           component: true
         }
-      } : false
+      } : false,
+      contentSections: includeComponents ? { orderBy: { sortOrder: 'asc' } } : false
     }
   });
 
@@ -472,78 +442,46 @@ export async function listProjects(filters: ProjectFilters): Promise<ProjectList
 /**
  * Update a project
  */
-export async function updateProject(
-  projectId: string,
-  data: UpdateProjectRequest
-): Promise<ProjectResponse> {
-  // Check if project exists
-  const existingProject = await prisma.project.findUnique({
-    where: { id: projectId }
-  });
-
-  if (!existingProject) {
-    throw new Error('Project not found');
-  }
-
-  // If slug is being updated, check for conflicts
-  if (data.slug && data.slug !== existingProject.slug) {
-    const slugConflict = await prisma.project.findUnique({
-      where: { slug: data.slug }
-    });
-
-    if (slugConflict) {
-      throw new Error(`A project with slug "${data.slug}" already exists`);
+export async function updateProject(projectId: string, input: UpdateProjectRequest): Promise<ProjectResponse> {
+  const data = updateProjectSchema.parse(input);
+  const updated = await prisma.$transaction(async tx => {
+    const existing = await tx.project.findFirst({ where: { id: projectId, deletedAt: null } });
+    if (!existing) throw new Error('Project not found');
+    if (data.slug && data.slug !== existing.slug) {
+      const conflict = await tx.project.findUnique({ where: { slug: data.slug } });
+      if (conflict) throw new Error(`A project with slug "${data.slug}" already exists`);
     }
-  }
-
-  // Build update data with proper null handling
-  const updateData: any = {};
-  Object.keys(data).forEach((key) => {
-    // Skip components key as we'll handle it separately
-    if (key === 'components') return;
-    
-    const value = (data as any)[key];
-    updateData[key] = value === undefined ? null : value;
-  });
-
-  // Handle component updates if provided
-  if (data.components) {
-    // Delete existing component relations
-    await prisma.projectComponent.deleteMany({
-      where: { projectId }
+    const effective = updateProjectSchema.parse({
+      ...data, preBuiltAvailable: data.preBuiltAvailable ?? existing.preBuiltAvailable,
+      preBuiltPriceCents: data.preBuiltPriceCents === undefined ? existing.preBuiltPriceCents : data.preBuiltPriceCents,
+      costEstimateMinCents: data.costEstimateMinCents === undefined ? existing.costEstimateMinCents : data.costEstimateMinCents,
+      costEstimateMaxCents: data.costEstimateMaxCents === undefined ? existing.costEstimateMaxCents : data.costEstimateMaxCents,
     });
-
-    // Create new component relations
-    await Promise.all(
-      data.components.map((comp) =>
-        prisma.projectComponent.create({
-          data: {
-            projectId,
-            componentId: comp.componentId,
-            quantity: comp.quantity,
-            notes: comp.notes || null
-          }
-        })
-      )
-    );
-  }
-
-  // Update project
-  const updatedProject = await prisma.project.update({
-    where: { id: projectId },
-    data: updateData,
-    include: {
-      createdBy: true,
-      defaultMentor: true,
-      projectComponents: {
-        include: {
-          component: true
-        }
-      }
-    }
+    const { components, contentSections, ...fields } = effective;
+    return tx.project.update({
+      where: { id: projectId },
+      data: {
+        ...definedFields(fields),
+        ...(!effective.preBuiltAvailable ? { preBuiltPriceCents: null, preBuiltStock: 0 } : {}),
+        ...(components !== undefined ? { projectComponents: {
+          deleteMany: { componentId: { notIn: components.map(row => row.componentId) } },
+          upsert: components.map(row => ({
+            where: { projectId_componentId: { projectId, componentId: row.componentId } },
+            create: componentData(row), update: componentData(row),
+          })),
+        } } : {}),
+        ...(contentSections !== undefined ? { contentSections: {
+          deleteMany: { sectionKey: { notIn: contentSections.map(section => section.sectionKey) } },
+          upsert: contentSections.map(section => ({
+            where: { projectId_sectionKey: { projectId, sectionKey: section.sectionKey } },
+            create: sectionData(section), update: sectionData(section),
+          })),
+        } } : {}),
+      },
+      include: { createdBy: true, defaultMentor: true, projectComponents: { include: { component: true } }, contentSections: { orderBy: { sortOrder: 'asc' } } },
+    });
   });
-
-  return transformProjectToResponse(updatedProject, true);
+  return transformProjectToResponse(updated, true);
 }
 
 /**

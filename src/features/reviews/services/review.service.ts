@@ -1,4 +1,11 @@
 import { prisma } from "../../../lib/prisma.js";
+import { getProductSettings } from '../../settings/services/store-settings.service.js';
+
+export async function assertReviewsEnabled() {
+  if (!(await getProductSettings()).productReviewsEnabled) {
+    throw Object.assign(new Error('Product reviews are currently paused.'), { statusCode: 403 });
+  }
+}
 
 export async function createReview(
   userId: string,
@@ -8,6 +15,7 @@ export async function createReview(
   body?: string,
   imageUrl?: string,
 ) {
+  await assertReviewsEnabled();
   if (rating < 1 || rating > 5) throw Object.assign(new Error("Rating must be between 1 and 5"), { statusCode: 400 });
 
   const component = await prisma.component.findUnique({ where: { id: componentId }, select: { id: true } });
@@ -43,6 +51,9 @@ export async function createReview(
 }
 
 export async function getComponentReviews(componentId: string, page: number, limit: number) {
+  if (!(await getProductSettings()).productReviewsEnabled) {
+    return { enabled: false, reviews: [], total: 0, page, limit, totalPages: 0, averageRating: 0, reviewCount: 0, breakdown: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } };
+  }
   const [reviews, total, agg, starCounts] = await Promise.all([
     prisma.review.findMany({
       where: { componentId, isApproved: true },
@@ -73,6 +84,7 @@ export async function getComponentReviews(componentId: string, page: number, lim
   });
 
   return {
+    enabled: true,
     reviews,
     total,
     page,
