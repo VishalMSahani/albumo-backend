@@ -57,7 +57,28 @@ export interface ShippingRate {
   courier_name: string;
   courier_id: number;
   rate: number;
-  estimated_delivery_days: number;
+  estimated_delivery_days: number | string;
+  etd?: string;
+}
+
+export type DeliveryEstimate = {
+  pincode: string;
+  serviceable: boolean;
+  minDays: number | null;
+  maxDays: number | null;
+  courierCount: number;
+};
+
+export function deliveryDays(value: number | string): number | null {
+  const match = String(value).match(/\d+/g);
+  if (!match?.length) return null;
+  const days = Math.max(...match.map(Number).filter(Number.isFinite));
+  return Number.isInteger(days) && days > 0 && days <= 60 ? days : null;
+}
+
+export function summarizeDeliveryRates(pincode: string, rates: ShippingRate[]): DeliveryEstimate {
+  const days = rates.map(rate => deliveryDays(rate.estimated_delivery_days)).filter((value): value is number => value !== null);
+  return { pincode, serviceable: rates.length > 0, minDays: days.length ? Math.min(...days) : null, maxDays: days.length ? Math.max(...days) : null, courierCount: rates.length };
 }
 
 export async function getShippingRates(
@@ -69,6 +90,18 @@ export async function getShippingRates(
   const path = `/courier/serviceability/?pickup_postcode=${pickupPincode}&delivery_postcode=${deliveryPincode}&weight=${weightKg}&cod=${cod ? 1 : 0}`;
   const data = await shiprocketGet<{ data?: { available_courier_companies?: ShippingRate[] } }>(path);
   return data.data?.available_courier_companies ?? [];
+}
+
+export async function getDeliveryEstimate(pincode: string, weightKg: number): Promise<DeliveryEstimate> {
+  const pickupPincode = process.env.WAREHOUSE_PINCODE;
+  if (!pickupPincode || !/^\d{6}$/.test(pickupPincode)) {
+    throw Object.assign(new Error('Delivery estimates are not configured yet'), { statusCode: 503 });
+  }
+  if (!process.env.SHIPROCKET_EMAIL || !process.env.SHIPROCKET_PASSWORD) {
+    throw Object.assign(new Error('Delivery estimates are temporarily unavailable'), { statusCode: 503 });
+  }
+  const rates = await getShippingRates(pickupPincode, pincode, weightKg, false);
+  return summarizeDeliveryRates(pincode, rates);
 }
 
 export async function createShipment(orderId: string, courierId?: number): Promise<{ awb: string; trackingUrl: string }> {

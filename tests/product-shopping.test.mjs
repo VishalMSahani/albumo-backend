@@ -6,6 +6,9 @@ import { parseProductDetails, productDetailsSchema } from '../src/features/compo
 import { validateCreateComponent, validateUpdateComponent } from '../src/features/components/validators/component.validator.ts';
 import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
+import { createReviewSchema } from '../src/features/reviews/validators/review.validator.ts';
+import { deliveryDays, summarizeDeliveryRates } from '../src/features/shipping/services/shiprocket.service.ts';
+import { adminProductSettingsBodySchema } from '../src/validators/admin.validator.ts';
 
 test('downloaded product template validates, is inactive, and supports the existing admin fields', () => {
   const [row] = parseProductCsv(productTemplateCsv());
@@ -43,6 +46,20 @@ test('omitted columns are not replaced with destructive defaults; sale can be ex
 test('pricing validation used by both create and update rejects invalid sale and stock values', () => {
   assert(productPricingSchema.safeParse({ unitPriceCents: 1000, discountedPriceCents: 0, stockQuantity: 0 }).success);
   for (const price of [-1, 1000, 2000, 0.5, Infinity, NaN]) assert.equal(productPricingSchema.safeParse({ unitPriceCents: 1000, discountedPriceCents: price }).success, false);
+});
+test('review control and delivery estimate inputs have strict contracts', () => {
+  assert(adminProductSettingsBodySchema.safeParse({ productReviewsEnabled: false }).success);
+  assert.equal(adminProductSettingsBodySchema.safeParse({ productReviewsEnabled: 'false' }).success, false);
+  assert(createReviewSchema.safeParse({ componentId: 'product-id', rating: 5, title: 'Useful' }).success);
+  assert.equal(createReviewSchema.safeParse({ componentId: 'product-id', rating: 6 }).success, false);
+  assert.equal(deliveryDays('4'), 4);
+  assert.equal(deliveryDays('3 - 5'), 5);
+  assert.equal(deliveryDays('unknown'), null);
+  assert.deepEqual(summarizeDeliveryRates('400001', [
+    { courier_name: 'One', courier_id: 1, rate: 50, estimated_delivery_days: '3' },
+    { courier_name: 'Two', courier_id: 2, rate: 60, estimated_delivery_days: '4 - 6' },
+  ]), { pincode: '400001', serviceable: true, minDays: 3, maxDays: 6, courierCount: 2 });
+  assert.deepEqual(summarizeDeliveryRates('400001', []), { pincode: '400001', serviceable: false, minDays: null, maxDays: null, courierCount: 0 });
 });
 
 const information = {
@@ -122,4 +139,29 @@ test('admin create/edit/clear round trip persists and returns all product tab fi
   await assert.rejects(contract.updateComponent(product.id, { specifications: [{ label: '', value: 'Invalid' }] }));
   await assert.rejects(contract.createComponent({ name: 'Invalid details', unitPriceCents: 1000, specifications: 'not JSON' }));
   assert.equal(writes, count, 'invalid details must not reach a database write');
+});
+
+const reviewMock = {};
+globalThis.__productReviewPrisma = reviewMock;
+const reviewBundle = await build({
+  stdin: { contents: "export * from './src/features/reviews/services/review.service.ts';", resolveDir: fileURLToPath(new URL('..', import.meta.url)), loader: 'ts' },
+  bundle: true, platform: 'node', format: 'esm', write: false,
+  plugins: [{ name: 'isolated-review-control', setup(builder) {
+    builder.onResolve({ filter: /lib\/prisma\.js$/ }, () => ({ path: 'prisma', namespace: 'review-control-test' }));
+    builder.onLoad({ filter: /.*/, namespace: 'review-control-test' }, () => ({ contents: 'export const prisma = globalThis.__productReviewPrisma;', loader: 'js' }));
+  } }],
+});
+const reviewContract = await import('data:text/javascript;base64,' + Buffer.from(reviewBundle.outputFiles[0].text).toString('base64'));
+test('paused reviews hide saved feedback and block new submissions before product writes', async () => {
+  let reviewReads = 0, componentReads = 0;
+  reviewMock.storeSetting = { findUnique: async () => ({ productReviewsEnabled: false }) };
+  reviewMock.review = { findMany: async () => { reviewReads++; return []; } };
+  reviewMock.component = { findUnique: async () => { componentReads++; return { id: 'product-id' }; } };
+  const hidden = await reviewContract.getComponentReviews('product-id', 1, 5);
+  assert.equal(hidden.enabled, false);
+  assert.equal(reviewReads, 0);
+  await assert.rejects(reviewContract.createReview('user-id', 'product-id', 5), /paused/);
+  assert.equal(componentReads, 0);
+  reviewMock.storeSetting.findUnique = async () => ({ productReviewsEnabled: true });
+  await reviewContract.assertReviewsEnabled();
 });

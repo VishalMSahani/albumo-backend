@@ -25,6 +25,20 @@ export async function getRatesHandler(req: Request, res: Response): Promise<void
   }
 }
 
+export async function getDeliveryEstimateHandler(req: Request, res: Response): Promise<void> {
+  const pincode = req.query.pincode as string;
+  const configuredWeight = Number(process.env.PRODUCT_ESTIMATE_WEIGHT_KG || 0.5);
+  const weightKg = Number.isFinite(configuredWeight) && configuredWeight > 0 && configuredWeight <= 50 ? configuredWeight : 0.5;
+  try {
+    const estimate = await shiprocketService.getDeliveryEstimate(pincode, weightKg);
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    res.json({ success: true, data: estimate });
+  } catch (err) {
+    const error = err as Error & { statusCode?: number };
+    res.status(error.statusCode ?? 502).json({ success: false, error: error.message });
+  }
+}
+
 export async function createShipmentHandler(req: Request, res: Response): Promise<void> {
   const { orderId, courierId } = req.body as { orderId?: string; courierId?: number };
 

@@ -17,6 +17,7 @@ import { authenticate, authorize } from "../../../middlewares/auth.middleware.js
 import { uploadComponentImages, uploadProductMedia, uploadSingleImage } from "../../../middlewares/upload.middleware.js";
 import { getComponentReviewsHandler } from "../../reviews/controllers/review.controller.js";
 import { cacheResponse } from "../../../middlewares/cache.middleware.js";
+import { asyncHandler } from '../../../utils/async-handler.js';
 
 const router: RouterType = Router();
 
@@ -45,7 +46,7 @@ router.get("/slug/:slug", cacheResponse(60), componentController.getComponentByS
 
 // Dynamic param route — must come after all static paths
 router.get("/:id", componentController.getComponentByIdHandler);
-router.get("/:id/reviews", getComponentReviewsHandler);
+router.get("/:id/reviews", asyncHandler(getComponentReviewsHandler));
 
 // Product media — public read, admin write
 router.post("/upload/image", authenticate, authorize("ADMIN", "SUPER_ADMIN"), uploadSingleImage, handleSingleImageUpload);
