@@ -16,6 +16,7 @@ export { cartAbandonedTemplate } from "./cartAbandoned.js";
 export { supportTicketTemplate } from "./supportTicket.js";
 
 import { EmailEventType } from "../../generated/prisma/client.js";
+import { bulkOrderTemplate } from "./bulkOrder.js";
 import type { EmailTemplate } from "./base.js";
 import { userSignupTemplate } from "./userSignup.js";
 import { emailVerificationTemplate } from "./emailVerification.js";
@@ -41,6 +42,8 @@ export function getEmailTemplate(
   data: EmailTemplateData
 ): EmailTemplate {
   switch (eventType) {
+    case EmailEventType.BULK_ORDER_UPDATED:
+      return bulkOrderTemplate(data);
     case EmailEventType.USER_SIGNUP:
       return userSignupTemplate(data);
 

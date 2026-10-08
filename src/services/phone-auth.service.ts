@@ -45,10 +45,10 @@ export type PhoneAuthStart =
 export async function startPhoneAuth(phone: string, audit: ConsentAuditContext): Promise<PhoneAuthStart> {
   await limitAuth("phone-start-ip", audit.ipAddress || "unknown", 30, 3600);
   if (whatsappOtpAvailable()) {
-    try { return { kind: "otp", ...await requestPhoneCode(phone, audit) }; }
-    catch (error) {
-      if (!(error instanceof AuthError) || !["OTP_UNAVAILABLE", "OTP_DELIVERY_FAILED"].includes(error.code || "")) throw error;
-    }
+    // Once OTP is enabled, delivery failures must not fall through to an
+    // account-dependent password/signup response. That would disclose whether
+    // a phone number is registered whenever Meta is unavailable.
+    return { kind: "otp", ...await requestPhoneCode(phone, audit) };
   }
   const existing = await prisma.user.findFirst({
     where: { OR: [{ phone }, { pendingPhone: phone }] },

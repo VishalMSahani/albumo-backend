@@ -154,6 +154,7 @@ export async function getAdminTicketsHandler(req: Request, res: Response) {
     const data = await getAdminSupportTickets({
       page,
       limit,
+      ...(["SUPPORT", "GENERAL", "CUSTOM_PROJECT"].includes(String(req.query.source)) ? { source: String(req.query.source) } : {}),
       ...(typeof req.query.search === "string" && req.query.search.trim()
         ? { search: req.query.search.trim().slice(0, 160) }
         : {}),

@@ -1,0 +1,21 @@
+import { Router, type Router as RouterType } from "express";
+import { authenticate, authorize, optionalAuthenticate } from "../../middlewares/auth.middleware.js";
+import { validate } from "../../middlewares/validate.middleware.js";
+import { asyncHandler } from "../../utils/async-handler.js";
+import * as controller from "./contact.controller.js";
+import * as schema from "./contact.validator.js";
+
+const router: RouterType = Router();
+router.get("/settings", validate({ query: schema.emptySchema }), asyncHandler(controller.publicSettings));
+router.post("/enquiries", optionalAuthenticate, validate({ body: schema.enquirySchema }), asyncHandler(controller.createEnquiry));
+router.post("/newsletter/subscribe", validate({ body: schema.subscribeSchema }), asyncHandler(controller.requestNewsletter));
+router.post("/newsletter/manage", validate({ body: schema.manageSchema }), asyncHandler(controller.requestNewsletter));
+router.post("/newsletter/confirm", validate({ body: schema.tokenSchema }), asyncHandler(controller.newsletterAction));
+router.post("/newsletter/unsubscribe", validate({ body: schema.tokenSchema }), asyncHandler(controller.newsletterAction));
+router.use("/admin", authenticate, authorize("ADMIN", "SUPER_ADMIN"));
+router.get("/admin/settings", validate({ query: schema.emptySchema }), asyncHandler(controller.adminSettings));
+router.put("/admin/settings", validate({ body: schema.contactSettingsSchema }), asyncHandler(controller.saveSettings));
+router.get("/admin/subscribers", validate({ query: schema.subscriberQuerySchema }), asyncHandler(controller.subscribers));
+router.get("/admin/subscribers/export", validate({ query: schema.emptySchema }), asyncHandler(controller.exportActive));
+router.post("/admin/subscribers/:id/unsubscribe", validate({ params: schema.idSchema, body: schema.emptySchema }), asyncHandler(controller.unsubscribeAdmin));
+export default router;

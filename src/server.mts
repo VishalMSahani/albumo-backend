@@ -41,6 +41,7 @@ import storeSettingsRoutes from "./features/settings/routes/store-settings.route
 import threeDPrintingRoutes from "./features/three-d-printing/routes/three-d-printing.routes.js";
 import legalRoutes from "./features/legal/legal.routes.js";
 import supportRoutes from "./features/support/support.routes.js";
+import contactRoutes from "./features/contact/contact.routes.js";
 import uploadTransportRoutes from "./routes/uploadTransportRoutes.js";
 import jobRoutes from "./routes/jobRoutes.js";
 import whatsappWebhookRoutes from "./features/whatsapp/whatsapp-webhook.routes.js";
@@ -319,6 +320,7 @@ app.use("/api/uploads", uploadTransportRoutes);
 app.use("/api/internal", jobRoutes);
 app.use("/api/legal", legalRoutes);
 app.use("/api/support", supportRoutes);
+app.use("/api/contact", contactRoutes);
 app.use("/api/store-settings", storeSettingsRoutes);
 app.use("/api/3d-printing", orderLimiter, threeDPrintingRoutes);
 app.use("/api/emails", emailRoutes);

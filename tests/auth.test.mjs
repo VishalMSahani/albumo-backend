@@ -181,13 +181,13 @@ test('a registered pending mobile uses password fallback and is promoted after W
   assert.equal(updated.pendingPhone, null);
   assert(updated.phoneVerifiedAt);
 });
-test('WhatsApp provider downtime sends registered users to password login and never back to signup', async () => {
+test('WhatsApp provider downtime fails closed without revealing whether a mobile is registered', async () => {
   const number = phone();
   await user({ pendingPhone: number });
   rejectProvider = true;
   try {
-    assert.equal((await startPhoneAuth(number, audit())).kind, 'password');
-    assert.equal((await startPhoneAuth(phone(), audit())).kind, 'signup');
+    await assert.rejects(startPhoneAuth(number, audit()), error => error.code === 'OTP_DELIVERY_FAILED');
+    await assert.rejects(startPhoneAuth(phone(), audit()), error => error.code === 'OTP_DELIVERY_FAILED');
   } finally { rejectProvider = false; }
 });
 test('a disabled registered mobile is not offered signup and cannot log in', async () => {

@@ -2,6 +2,8 @@ import { prisma } from "../lib/prisma.js";
 import { Prisma } from "../generated/prisma/client.js";
 
 export type AdminActionType =
+  | "UPDATE_BULK_ORDER"
+  | "UPDATE_CONTACT_SETTINGS" | "UNSUBSCRIBE_NEWSLETTER" | "EXPORT_NEWSLETTER"
   | "CREATE_PRODUCT" | "UPDATE_PRODUCT" | "DELETE_PRODUCT" | "ARCHIVE_PRODUCT"
   | "CREATE_PROJECT" | "UPDATE_PROJECT" | "DELETE_PROJECT"
   | "UPDATE_ORDER_STATUS" | "CANCEL_ORDER" | "REFUND_ORDER"
@@ -12,7 +14,7 @@ export type AdminActionType =
   | "UPDATE_SUPPORT_TICKET" | "REPLY_SUPPORT_TICKET"
   | "CREATE_KNOWLEDGE_ARTICLE" | "UPDATE_KNOWLEDGE_ARTICLE" | "DELETE_KNOWLEDGE_ARTICLE";
 
-export type AdminTargetType = "PRODUCT" | "PROJECT" | "ORDER" | "COUPON" | "USER" | "CATEGORY" | "PCB_REQUEST" | "STORE_SETTING" | "SUPPORT_TICKET" | "KNOWLEDGE_ARTICLE";
+export type AdminTargetType = "PRODUCT" | "PROJECT" | "ORDER" | "COUPON" | "USER" | "CATEGORY" | "PCB_REQUEST" | "STORE_SETTING" | "SUPPORT_TICKET" | "KNOWLEDGE_ARTICLE" | "CONTACT_SETTINGS" | "NEWSLETTER_SUBSCRIBER" | "BULK_ORDER";
 
 export async function logAdminAction(
   adminId: string,

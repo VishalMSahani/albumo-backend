@@ -1,5 +1,5 @@
 import cron from "node-cron";
-import { recoverAuthEmails } from "./auth-email.service.js";
+import { recoverAuthEmails, recoverBulkEmails } from "./auth-email.service.js";
 import { prisma } from "../lib/prisma.js";
 import { logger } from "../lib/logger.js";
 import { getStockQueue, getTrackingQueue } from "../lib/queue.js";
@@ -129,6 +129,7 @@ export async function cleanupStagedUploads() {
 }
 
 export const scheduledJobs = [
+  { name: "recoverBulkEmails", schedule: "* * * * *", interval: 60000, run: recoverBulkEmails },
   { name: "recoverAuthEmails", schedule: "* * * * *", interval: 60000, run: recoverAuthEmails },
   { name: "cleanupStagedUploads", schedule: "17 3 * * *", interval: 86400000, run: cleanupStagedUploads },
   { name: "cancelStaleOrders", schedule: "*/5 * * * *", interval: 300000, run: cancelStaleOrders },

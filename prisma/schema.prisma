@@ -27,6 +27,7 @@ enum AuthProvider {
 }
 
 enum EmailEventType {
+  BULK_ORDER_UPDATED
   USER_SIGNUP
   USER_EMAIL_VERIFICATION
   PASSWORD_RESET
@@ -1359,6 +1360,8 @@ model SupportTicket {
   category           SupportTicketCategory
   subject            String
   description        String                @db.Text
+  source             String                @default("SUPPORT")
+  enquiry            Json?
   priority           SupportTicketPriority @default(MEDIUM)
   status             SupportTicketStatus   @default(OPEN)
   firstResponseDueAt DateTime              @db.Timestamptz(6)
@@ -1380,6 +1383,37 @@ model SupportTicket {
   @@index([assignedToId, status])
   @@index([firstResponseDueAt])
   @@index([resolutionDueAt])
+  @@index([source, createdAt])
+}
+
+model ContactSetting {
+  id                Int      @id @default(1)
+  email             String   @default("")
+  phone             String   @default("")
+  whatsapp          String   @default("")
+  hours             String   @default("")
+  newsletterEnabled Boolean  @default(true)
+  updatedAt         DateTime @updatedAt @db.Timestamptz(6)
+}
+
+model NewsletterSubscriber {
+  id                   String    @id @default(cuid())
+  email                String    @unique
+  status               String    @default("PENDING")
+  source               String
+  consentVersion       String
+  consentAt            DateTime  @db.Timestamptz(6)
+  confirmedAt          DateTime? @db.Timestamptz(6)
+  unsubscribedAt       DateTime? @db.Timestamptz(6)
+  confirmTokenHash     String?   @unique
+  confirmExpiresAt     DateTime? @db.Timestamptz(6)
+  unsubscribeTokenHash String?   @unique
+  lastEmailAt          DateTime? @db.Timestamptz(6)
+  deliveryError        Boolean   @default(false)
+  createdAt            DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt            DateTime  @updatedAt @db.Timestamptz(6)
+
+  @@index([status, createdAt])
 }
 
 model SupportTicketMessage {
@@ -1526,6 +1560,9 @@ enum BulkOrderStatus {
   SUBMITTED
   REVIEWING
   QUOTED
+  ACCEPTED
+  DECLINED
+  IN_FULFILLMENT
   COMPLETED
   CANCELLED
 }
@@ -1542,12 +1579,54 @@ model BulkOrderRequest {
   notes       String?         @db.Text
   status      BulkOrderStatus @default(SUBMITTED)
   adminNotes  String?         @db.Text
+  reference   String?         @unique
+  requestKey  String?         @unique
+  accessKeyHash String?
+  items       Json            @default("[]")
+  postalCode  String?
+  deliveryAddress String?     @db.Text
+  gstin       String?
+  timeline    String?
+  consentAt   DateTime?       @db.Timestamptz(6)
+  version     Int             @default(0)
+  quotes      BulkOrderQuote[]
+  messages    BulkOrderMessage[]
 
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
   @@index([userId])
   @@index([status])
+}
+
+model BulkOrderQuote {
+  id             String   @id @default(cuid())
+  requestId      String
+  version        Int
+  items          Json
+  subtotalCents  Int
+  taxCents       Int
+  shippingCents  Int
+  totalCents     Int
+  validUntil     DateTime @db.Timestamptz(6)
+  leadTime       String
+  terms          String   @db.Text
+  decision       String?
+  decidedAt      DateTime? @db.Timestamptz(6)
+  createdById    String
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  request        BulkOrderRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  @@unique([requestId, version])
+}
+
+model BulkOrderMessage {
+  id        String @id @default(cuid())
+  requestId String
+  sender    String
+  body      String @db.Text
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  request   BulkOrderRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  @@index([requestId, createdAt])
 }
 
 // ========================================

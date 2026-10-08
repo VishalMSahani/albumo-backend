@@ -6,7 +6,8 @@ import { emailDeliveryConfigured } from "./email.service.js";
 import { logger } from "../lib/logger.js";
 
 type AuthEmailEvent = "USER_EMAIL_VERIFICATION" | "PASSWORD_RESET";
-async function enqueue(id: string, email: string, eventType: AuthEmailEvent, templateData: EmailTemplateData) {
+type RecoverableEmailEvent = AuthEmailEvent | "BULK_ORDER_UPDATED";
+async function enqueue(id: string, email: string, eventType: RecoverableEmailEvent, templateData: EmailTemplateData) {
   const queue = getEmailQueue();
   if (!queue) return;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -40,16 +41,22 @@ export async function queueAuthEmail(email: string, eventType: AuthEmailEvent, t
 
 /** Called by the existing scheduler; deterministic job IDs prevent duplicate active jobs. */
 export async function recoverAuthEmails() {
+  return recoverEmails(["USER_EMAIL_VERIFICATION", "PASSWORD_RESET"], new Date(Date.now() - 86_400_000));
+}
+export async function recoverBulkEmails() {
+  return recoverEmails(["BULK_ORDER_UPDATED"]);
+}
+async function recoverEmails(events: RecoverableEmailEvent[], since?: Date) {
   const queue = getEmailQueue();
   if (!queue && !emailDeliveryConfigured()) return;
   const pending = await prisma.emailNotification.findMany({
-    where: { eventType: { in: ["USER_EMAIL_VERIFICATION", "PASSWORD_RESET"] }, isSent: false,
-      retryCount: { lt: prisma.emailNotification.fields.maxRetries }, createdAt: { gt: new Date(Date.now() - 86_400_000) } },
+    where: { eventType: { in: events }, isSent: false,
+      retryCount: { lt: prisma.emailNotification.fields.maxRetries }, ...(since ? { createdAt: { gt: since } } : {}) },
     orderBy: { createdAt: "asc" }, take: 50,
   });
   for (const notification of pending) {
     if (queue) {
-      await enqueue(notification.id, notification.email, notification.eventType as AuthEmailEvent, notification.metadata as EmailTemplateData);
+      await enqueue(notification.id, notification.email, notification.eventType as RecoverableEmailEvent, notification.metadata as EmailTemplateData);
     } else {
       await retryEmailNotification(notification.id);
     }

@@ -1,16 +1,22 @@
-import { Router } from "express";
-import multer from "../../../middlewares/upload-transport.middleware.js";
-import { createBulkOrder, getBulkOrders, updateBulkOrderStatus } from "../controllers/bulk-order.controller.js";
+import { Router, type Router as RouterType } from "express";
 import { authenticate, optionalAuthenticate, authorize } from "../../../middlewares/auth.middleware.js";
+import { validate } from "../../../middlewares/validate.middleware.js";
+import { rateLimit } from "express-rate-limit";
+import * as controller from "../controllers/bulk-order.controller.js";
+import * as schema from "../validators/bulk-order.validator.js";
 
-const router: Router = Router();
-const upload = multer({ storage: multer.memoryStorage() });
-
-// Public submission route (authenticated optionally)
-router.post("/", optionalAuthenticate, upload.single("csvFile"), createBulkOrder);
-
-// Admin-only routes
-router.get("/", authenticate, authorize("ADMIN", "SUPER_ADMIN"), getBulkOrders);
-router.patch("/:id/status", authenticate, authorize("ADMIN", "SUPER_ADMIN"), updateBulkOrderStatus);
-
+const router: RouterType = Router();
+router.post("/", optionalAuthenticate, validate({ body: schema.createBulkOrderSchema }), controller.createBulkOrder);
+router.post("/import-csv", validate({ body: schema.csvSchema }), controller.importCsv);
+router.post("/recover", validate({ body: schema.recoverSchema }), controller.recover);
+router.post("/:reference/track", optionalAuthenticate, validate({ params: schema.referenceSchema, body: schema.accessSchema }), controller.track);
+router.post("/:reference/decision", optionalAuthenticate, validate({ params: schema.referenceSchema, body: schema.decisionSchema }), controller.decision);
+router.post("/:reference/messages", optionalAuthenticate, validate({ params: schema.referenceSchema, body: schema.messageSchema }), controller.customerMessage);
+router.use(authenticate, authorize("ADMIN", "SUPER_ADMIN"));
+router.use(rateLimit({ windowMs: 60000, limit: 60, standardHeaders: true, legacyHeaders: false, message: { success: false, error: "Too many requests. Please wait a minute." } }));
+router.get("/", validate({ query: schema.listSchema }), controller.getBulkOrders);
+router.get("/:id", validate({ params: schema.idSchema }), controller.getBulkOrder);
+router.post("/:id/quote", validate({ params: schema.idSchema, body: schema.quoteSchema }), controller.publish);
+router.patch("/:id/status", validate({ params: schema.idSchema, body: schema.statusSchema }), controller.updateBulkOrderStatus);
+router.post("/:id/reply", validate({ params: schema.idSchema, body: schema.messageSchema }), controller.adminMessage);
 export default router;

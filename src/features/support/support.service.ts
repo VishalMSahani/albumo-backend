@@ -31,6 +31,7 @@ type TicketListQuery = {
   priority?: SupportTicketPriority;
   category?: Prisma.SupportTicketWhereInput["category"];
   sla?: "BREACHED" | "DUE_SOON";
+  source?: string;
 };
 
 type ArticleQuery = {
@@ -121,7 +122,7 @@ function queueTicketEmail(
   ).catch((error) => console.error("[Support] Could not queue ticket email", error));
 }
 
-function notifyTicketCreated(ticket: {
+async function notifyTicketCreated(ticket: {
   ticketNumber: string;
   userId: string | null;
   requesterName: string;
@@ -134,7 +135,8 @@ function notifyTicketCreated(ticket: {
     ...(ticket.userId ? { userId: ticket.userId } : {}),
   });
 
-  const supportEmail = process.env.SUPPORT_EMAIL || process.env.FROM_EMAIL || process.env.SMTP_USER;
+  const contact = await prisma.contactSetting.findUnique({ where: { id: 1 }, select: { email: true } }).catch(() => null);
+  const supportEmail = contact?.email || process.env.SUPPORT_EMAIL || process.env.FROM_EMAIL || process.env.SMTP_USER;
   if (supportEmail && supportEmail.toLowerCase() !== ticket.requesterEmail.toLowerCase()) {
     queueTicketEmail(supportEmail, EmailEventType.SUPPORT_TICKET_CREATED, ticket, { audience: "SUPPORT" });
   }
@@ -153,7 +155,7 @@ async function requesterFor(userId: string | undefined, input: CreateTicketInput
   return { userId: user.id, name: user.name || input.name, email: user.email.toLowerCase() };
 }
 
-export async function createSupportTicket(input: CreateTicketInput, authenticatedUserId?: string) {
+export async function createSupportTicket(input: CreateTicketInput, authenticatedUserId?: string, context?: { source: string; enquiry: Prisma.InputJsonObject }) {
   const requester = await requesterFor(authenticatedUserId, input);
   if (input.orderId) {
     if (!requester.userId) throw new ValidationError("Sign in to link an order to this ticket");
@@ -176,6 +178,7 @@ export async function createSupportTicket(input: CreateTicketInput, authenticate
       category: input.category,
       subject: input.subject,
       description: input.description,
+      ...(context ? { source: context.source, enquiry: context.enquiry } : {}),
       priority,
       ...deadlines(priority, now),
       messages: {
@@ -197,7 +200,7 @@ export async function createSupportTicket(input: CreateTicketInput, authenticate
     include: customerTicketInclude,
   });
 
-  notifyTicketCreated(ticket);
+  void notifyTicketCreated(ticket).catch(error => console.error("[Support] Could not queue notifications", error));
   return ticket;
 }
 
@@ -277,6 +280,7 @@ function adminTicketWhere(input: TicketListQuery): Prisma.SupportTicketWhereInpu
     ...(input.status ? { status: input.status } : {}),
     ...(input.priority ? { priority: input.priority } : {}),
     ...(input.category ? { category: input.category } : {}),
+    ...(input.source ? { source: input.source } : {}),
     ...(input.search
       ? {
           OR: [

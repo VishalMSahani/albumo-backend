@@ -6,7 +6,8 @@ function configuration() {
   const { WHATSAPP_ACCESS_TOKEN: token, WHATSAPP_PHONE_NUMBER_ID: phoneId,
     WHATSAPP_AUTH_TEMPLATE_NAME: template, WHATSAPP_API_VERSION: version } = process.env;
   if (process.env.WHATSAPP_OTP_ENABLED !== "true" || !token || !/^\d+$/.test(phoneId ?? "") ||
-      !/^[a-z0-9_]+$/.test(template ?? "") || !/^v\d+\.\d+$/.test(version ?? "")) return null;
+      !/^[a-z0-9_]+$/.test(template ?? "") || !/^v\d+\.\d+$/.test(version ?? "") ||
+      !/^[a-z]{2,3}(?:_[A-Z]{2})?$/.test(process.env.WHATSAPP_AUTH_TEMPLATE_LANGUAGE || "en_US")) return null;
   try { authSecret("AUTH_OTP_SECRET"); } catch { return null; }
   return { token, phoneId, template, version, language: process.env.WHATSAPP_AUTH_TEMPLATE_LANGUAGE || "en_US" };
 }
@@ -21,7 +22,7 @@ export async function sendWhatsAppOtp(phone: string, code: string): Promise<void
       method: "POST", headers: { Authorization: `Bearer ${config.token}`, "Content-Type": "application/json" },
       signal: AbortSignal.timeout(12_000),
       body: JSON.stringify({
-        messaging_product: "whatsapp", to: phone.replace("+", ""), type: "template",
+        messaging_product: "whatsapp", recipient_type: "individual", to: phone.replace("+", ""), type: "template",
         template: { name: config.template, language: { code: config.language },
           components: [
             { type: "body", parameters: [{ type: "text", text: code }] },
