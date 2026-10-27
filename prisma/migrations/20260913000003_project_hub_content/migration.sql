@@ -1,11 +1,12 @@
+-- Media columns were introduced by 20251211212726_add_project_media_fields.
 ALTER TABLE "Project"
   ADD COLUMN "costEstimateMinCents" INTEGER,
   ADD COLUMN "costEstimateMaxCents" INTEGER,
   ADD COLUMN "heroImageUrl" TEXT,
   ADD COLUMN "heroVideoUrl" TEXT,
-  ADD COLUMN "imageUrls" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
-  ADD COLUMN "pdfUrls" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
-  ADD COLUMN "externalLinks" JSONB;
+  ADD COLUMN IF NOT EXISTS "imageUrls" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+  ADD COLUMN IF NOT EXISTS "pdfUrls" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+  ADD COLUMN IF NOT EXISTS "externalLinks" JSONB;
 
 ALTER TABLE "ProjectComponent"
   ADD COLUMN "isOptional" BOOLEAN NOT NULL DEFAULT false,

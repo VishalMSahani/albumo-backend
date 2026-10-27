@@ -14,10 +14,12 @@
 import { prisma } from "../lib/prisma.js";
 import { queueEmailNotification } from "./email-notification.service.js";
 import { EmailEventType } from "../generated/prisma/client.js";
+import { emailConfig } from "./email-config.js";
 import { logger } from "../lib/logger.js";
 
 /** How long a cart must be idle before it's considered abandoned */
-const ABANDON_THRESHOLD_MS = Number(process.env.CART_ABANDON_HOURS || 2) * 60 * 60 * 1000;
+const ABANDON_THRESHOLD_MS =
+  Number(process.env.CART_ABANDON_HOURS || 2) * 60 * 60 * 1000;
 
 /** Minimum time between two abandoned cart emails to the same user */
 const COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -31,6 +33,8 @@ export async function processAbandonedCarts(): Promise<{
   emailed: number;
   skipped: number;
 }> {
+  if (!emailConfig().marketingEnabled)
+    return { found: 0, emailed: 0, skipped: 0 };
   const cutoff = new Date(Date.now() - ABANDON_THRESHOLD_MS);
   const cooldownCutoff = new Date(Date.now() - COOLDOWN_MS);
 
@@ -76,6 +80,13 @@ export async function processAbandonedCarts(): Promise<{
         continue;
       }
 
+      const subscriber = await prisma.newsletterSubscriber.findUnique({
+        where: { email: cart.user.email.toLowerCase() },
+      });
+      if (subscriber?.status !== "ACTIVE") {
+        skipped++;
+        continue;
+      }
       // Skip if user placed an order AFTER the cart was last updated
       const recentOrder = await prisma.order.findFirst({
         where: {
@@ -106,14 +117,12 @@ export async function processAbandonedCarts(): Promise<{
       }
 
       // Build the email payload
-      const frontendUrl = process.env.FRONTEND_URL || "https://roboroot.in";
-      const cartTotalCents = cart.items.reduce(
-        (sum, item) => {
-          const priceCents = item.component.discountedPriceCents ?? item.component.unitPriceCents;
-          return sum + priceCents * item.quantity;
-        },
-        0,
-      );
+      const frontendUrl = emailConfig().siteUrl;
+      const cartTotalCents = cart.items.reduce((sum, item) => {
+        const priceCents =
+          item.component.discountedPriceCents ?? item.component.unitPriceCents;
+        return sum + priceCents * item.quantity;
+      }, 0);
       const cartTotal = cartTotalCents / 100;
 
       const templateData = {
@@ -123,7 +132,9 @@ export async function processAbandonedCarts(): Promise<{
         },
         cart: {
           items: cart.items.map((item) => {
-            const price = (item.component.discountedPriceCents ?? item.component.unitPriceCents) / 100;
+            const price =
+              (item.component.discountedPriceCents ??
+                item.component.unitPriceCents) / 100;
             return {
               name: item.component.name,
               price,

@@ -19,7 +19,7 @@ import {
   getPrivateFileAccess,
   uploadPrivateFile,
   type PrivateFileAccess,
-} from "../../../services/azure-storage.service.js";
+} from "../../../services/storage.service.js";
 import {
   calculateDeliveryFee,
   getDeliverySettings,
@@ -226,9 +226,7 @@ async function persistModelFile(
       userId,
       originalName: file.originalname,
       storageProvider:
-        stored.storageProvider === "AZURE"
-          ? PrintStorageProvider.AZURE
-          : PrintStorageProvider.LOCAL,
+        stored.storageProvider === "R2" ? PrintStorageProvider.R2 : stored.storageProvider === "AZURE" ? PrintStorageProvider.AZURE : PrintStorageProvider.LOCAL,
       storageKey: stored.storageKey,
       mimeType: file.mimetype || "application/octet-stream",
       format: analysis.format,

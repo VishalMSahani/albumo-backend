@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import { uploadFileToAzure, uploadMultipleFilesToAzure, FileType, UPLOAD_LIMITS } from '../../../services/azure-storage.service.js';
+import { uploadFile, uploadMultipleFiles, FileType, UPLOAD_LIMITS } from '../../../services/storage.service.js';
 import { createProject, updateProject, getProjectById } from '../services/project.service.js';
 import { createProjectSchema, updateProjectSchema, parseProjectMultipart } from '../validators/project.schema.js';
 import { cacheInvalidate } from '../../../lib/redis.js';
@@ -11,13 +11,13 @@ async function uploadMedia(files: MulterFiles) {
   let thumbnailUrl: string | undefined;
   if (files.thumbnail?.[0]) {
     const file = files.thumbnail[0];
-    const result = await uploadFileToAzure(file.buffer, file.originalname, file.mimetype, FileType.PROJECT_THUMBNAIL);
+    const result = await uploadFile(file.buffer, file.originalname, file.mimetype, FileType.PROJECT_THUMBNAIL);
     if ('error' in result) throw new Error(`Thumbnail upload failed: ${result.error}`);
     thumbnailUrl = result.url;
   }
   async function upload(list: Express.Multer.File[] | undefined, type: FileType, limit: number) {
     if (!list?.length) return [];
-    const result = await uploadMultipleFilesToAzure(list.map(file => ({ buffer: file.buffer, filename: file.originalname, mimeType: file.mimetype })), type, limit);
+    const result = await uploadMultipleFiles(list.map(file => ({ buffer: file.buffer, filename: file.originalname, mimeType: file.mimetype })), type, limit);
     if (!result.success) throw new Error(`Media upload failed: ${result.error}`);
     return result.urls;
   }

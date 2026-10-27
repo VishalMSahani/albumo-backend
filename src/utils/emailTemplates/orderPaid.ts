@@ -32,17 +32,17 @@ export function orderPaidTemplate(data: {
     </p>
 
     <p class="text-center">
-      <a href="https://roboroot.in/orders/${data.order.orderId}" class="button">View Order Details</a>
+      <a href="https://albumo.in/orders/${data.order.orderId}" class="button">View Order Details</a>
     </p>
 
     <p>
       Need an invoice? You can download it from your 
-      <a href="https://roboroot.in/orders/${data.order.orderId}">order page</a>.
+      <a href="https://albumo.in/orders/${data.order.orderId}">order page</a>.
     </p>
 
     <p>
       Thank you for your purchase! 🎉<br>
-      The RoboRoot Team
+      The Albumo Team
     </p>
   `;
 
@@ -63,11 +63,11 @@ Payment Status: Successful
 
 You'll receive a shipping confirmation email with tracking details once your order is dispatched.
 
-View order details: https://roboroot.in/orders/${data.order.orderId}
+View order details: https://albumo.in/orders/${data.order.orderId}
 
 Need an invoice? You can download it from your order page.
 
 Thank you for your purchase! 🎉
-The RoboRoot Team`,
+The Albumo Team`,
   };
 }

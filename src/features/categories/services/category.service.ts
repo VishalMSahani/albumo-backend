@@ -7,10 +7,14 @@ import type {
   UpdateSubcategoryRequest,
 } from "../types/category.types.js";
 
-export async function getAllCategories() {
+export async function getAllCategories(includeInactive = false) {
   return prisma.category.findMany({
+    where: includeInactive ? {} : { isActive: true },
     include: {
-      subcategories: true,
+      subcategories: {
+        where: includeInactive ? {} : { isActive: true },
+        orderBy: { name: "asc" },
+      },
     },
     orderBy: { name: "asc" },
   });
@@ -53,20 +57,25 @@ export async function updateCategory(id: string, data: UpdateCategoryRequest) {
     }
   }
 
-  const updateData: any = { ...data };
-  if (updateData.imageUrl === "") {
-    updateData.imageUrl = null;
-  }
-  if (updateData.description === "") {
-    updateData.description = null;
-  }
+  const updateData = {
+    ...data,
+    ...(data.imageUrl !== undefined ? { imageUrl: data.imageUrl || null } : {}),
+    ...(data.description !== undefined ? { description: data.description || null } : {}),
+  };
 
-  return prisma.category.update({
-    where: { id },
-    data: updateData,
-    include: {
-      subcategories: true,
-    },
+  return prisma.$transaction(async (tx) => {
+    const category = await tx.category.update({
+      where: { id },
+      data: updateData,
+      include: { subcategories: true },
+    });
+    if (data.name && data.name !== existing.name) {
+      await tx.component.updateMany({
+        where: { category: { equals: existing.name, mode: "insensitive" } },
+        data: { category: data.name },
+      });
+    }
+    return category;
   });
 }
 
@@ -76,17 +85,17 @@ export async function deleteCategory(id: string) {
     throw new NotFoundError("Category not found");
   }
 
-  // Update components referencing this category to defaults
-  await prisma.component.updateMany({
-    where: { category: { equals: existing.name, mode: "insensitive" } },
-    data: {
-      category: "Electronics Components",
-      subcategory: "General",
-    },
+  return prisma.$transaction(async (tx) => {
+    const assigned = await tx.component.count({
+      where: { category: { equals: existing.name, mode: "insensitive" } },
+    });
+    if (assigned)
+      throw new ConflictError(
+        "Move all products to another category before deleting this category",
+      );
+    await tx.category.delete({ where: { id } });
+    return { message: "Category deleted" };
   });
-
-  await prisma.category.delete({ where: { id } });
-  return { message: "Category deleted" };
 }
 
 export async function createSubcategory(data: CreateSubcategoryRequest) {
@@ -117,13 +126,18 @@ export async function createSubcategory(data: CreateSubcategoryRequest) {
       description: data.description || null,
       imageUrl: data.imageUrl || null,
       isActive: data.isActive !== undefined ? data.isActive : true,
+      ...(data.configuration ? { configuration: data.configuration } : {}),
     },
   });
 }
 
-export async function updateSubcategory(id: string, data: UpdateSubcategoryRequest) {
+export async function updateSubcategory(
+  id: string,
+  data: UpdateSubcategoryRequest,
+  categoryId?: string,
+) {
   const existing = await prisma.subcategory.findUnique({ where: { id } });
-  if (!existing) {
+  if (!existing || (categoryId && existing.categoryId !== categoryId)) {
     throw new NotFoundError("Subcategory not found");
   }
 
@@ -137,30 +151,51 @@ export async function updateSubcategory(id: string, data: UpdateSubcategoryReque
       },
     });
     if (nameExists) {
-      throw new ConflictError(`Subcategory "${data.name}" already exists in this category`);
+      throw new ConflictError(
+        `Subcategory "${data.name}" already exists in this category`,
+      );
     }
   }
 
-  return prisma.subcategory.update({
-    where: { id },
-    data,
+  return prisma.$transaction(async (tx) => {
+    const parent = await tx.category.findUniqueOrThrow({
+      where: { id: existing.categoryId },
+    });
+    const subcategory = await tx.subcategory.update({ where: { id }, data });
+    if (data.name && data.name !== existing.name) {
+      await tx.component.updateMany({
+        where: {
+          category: { equals: parent.name, mode: "insensitive" },
+          subcategory: { equals: existing.name, mode: "insensitive" },
+        },
+        data: { subcategory: data.name },
+      });
+    }
+    return subcategory;
   });
 }
 
-export async function deleteSubcategory(id: string) {
+export async function deleteSubcategory(id: string, categoryId?: string) {
   const existing = await prisma.subcategory.findUnique({ where: { id } });
-  if (!existing) {
+  if (!existing || (categoryId && existing.categoryId !== categoryId)) {
     throw new NotFoundError("Subcategory not found");
   }
 
-  // Update components referencing this subcategory to defaults
-  await prisma.component.updateMany({
-    where: { subcategory: { equals: existing.name, mode: "insensitive" } },
-    data: {
-      subcategory: "General",
-    },
+  return prisma.$transaction(async (tx) => {
+    const parent = await tx.category.findUniqueOrThrow({
+      where: { id: existing.categoryId },
+    });
+    const assigned = await tx.component.count({
+      where: {
+        category: { equals: parent.name, mode: "insensitive" },
+        subcategory: { equals: existing.name, mode: "insensitive" },
+      },
+    });
+    if (assigned)
+      throw new ConflictError(
+        "Move all products to another subcategory before deleting this subcategory",
+      );
+    await tx.subcategory.delete({ where: { id } });
+    return { message: "Subcategory deleted" };
   });
-
-  await prisma.subcategory.delete({ where: { id } });
-  return { message: "Subcategory deleted" };
 }

@@ -1,16 +1,32 @@
+import { lockCart } from "../../checkout/cart.service.js";
 import { prisma } from "../../../lib/prisma.js";
-import type { Cart, CartItem, Component } from "../../../generated/prisma/client.js";
+import type {
+  Cart,
+  CartItem,
+  Component,
+} from "../../../generated/prisma/client.js";
 
 export type CartItemWithComponent = CartItem & {
-  component: Pick<Component, "id" | "name" | "imageUrl" | "unitPriceCents" | "stockQuantity" | "isActive" | "sku">;
+  component: Pick<
+    Component,
+    | "id"
+    | "name"
+    | "imageUrl"
+    | "unitPriceCents"
+    | "stockQuantity"
+    | "isActive"
+    | "sku"
+  >;
 };
 
 export type CartWithItems = Cart & { items: CartItemWithComponent[] };
 
 async function getOrCreateCart(userId: string): Promise<Cart> {
-  const existing = await prisma.cart.findUnique({ where: { userId } });
-  if (existing) return existing;
-  return prisma.cart.create({ data: { userId } });
+  return prisma.cart.upsert({
+    where: { userId },
+    create: { userId },
+    update: {},
+  });
 }
 
 export async function getCart(userId: string): Promise<CartWithItems> {
@@ -40,7 +56,10 @@ export async function upsertCartItem(
   componentId: string,
   quantity: number,
 ): Promise<CartWithItems> {
-  if (quantity < 1) throw Object.assign(new Error("Quantity must be at least 1"), { statusCode: 400 });
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > 100)
+    throw Object.assign(new Error("Quantity must be at least 1"), {
+      statusCode: 400,
+    });
 
   const component = await prisma.component.findUnique({
     where: { id: componentId },
@@ -58,71 +77,88 @@ export async function upsertCartItem(
 
   const cart = await getOrCreateCart(userId);
 
-  await prisma.$transaction([
-    prisma.cartItem.upsert({
+  await prisma.$transaction(async (tx) => {
+    await lockCart(tx, cart.id);
+    await tx.cartItem.upsert({
       where: { cartId_componentId: { cartId: cart.id, componentId } },
       create: { cartId: cart.id, componentId, quantity },
       update: { quantity },
-    }),
-    prisma.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } }),
-  ]);
+    });
+    await tx.cart.update({
+      where: { id: cart.id },
+      data: { updatedAt: new Date() },
+    });
+  });
 
   return getCart(userId);
 }
 
-export async function removeCartItem(userId: string, componentId: string): Promise<CartWithItems> {
-  const cart = await prisma.cart.findUnique({ where: { userId } });
-  if (cart) {
-    await prisma.cartItem.deleteMany({ where: { cartId: cart.id, componentId } });
-    await prisma.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } });
-  }
+export async function removeCartItem(
+  userId: string,
+  componentId: string,
+): Promise<CartWithItems> {
+  const cart = await getOrCreateCart(userId);
+  await prisma.$transaction(async (tx) => {
+    await lockCart(tx, cart.id);
+    await tx.cartItem.deleteMany({ where: { cartId: cart.id, componentId } });
+    await tx.cart.update({
+      where: { id: cart.id },
+      data: { updatedAt: new Date() },
+    });
+  });
   return getCart(userId);
 }
-
 export async function clearCart(userId: string): Promise<void> {
-  const cart = await prisma.cart.findUnique({ where: { userId } });
-  if (cart) {
-    await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
-    await prisma.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } });
-  }
+  const cart = await getOrCreateCart(userId);
+  await prisma.$transaction(async (tx) => {
+    await lockCart(tx, cart.id);
+    await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+    await tx.studioCartItem.deleteMany({ where: { cartId: cart.id } });
+    await tx.cart.update({
+      where: { id: cart.id },
+      data: { updatedAt: new Date() },
+    });
+  });
 }
-
 export async function syncCart(
   userId: string,
   items: Array<{ componentId: string; quantity: number }>,
 ): Promise<CartWithItems> {
-  const cart = await getOrCreateCart(userId);
-
-  if (items.length === 0) {
-    await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
-    await prisma.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } });
-    return getCart(userId);
-  }
-
-  const componentIds = items.map((i) => i.componentId);
-  const components = await prisma.component.findMany({
-    where: { id: { in: componentIds }, isActive: true },
-    select: { id: true, stockQuantity: true },
-  });
-  const componentMap = new Map(components.map((c) => [c.id, c]));
-
-  const validItems = items
-    .filter((i) => {
-      const c = componentMap.get(i.componentId);
-      return c && i.quantity >= 1 && c.stockQuantity >= i.quantity;
-    })
-    .map((i) => {
-      const c = componentMap.get(i.componentId)!;
-      return { componentId: i.componentId, quantity: Math.min(i.quantity, c.stockQuantity) };
+  if (
+    items.length > 100 ||
+    items.some(
+      (i) =>
+        !i ||
+        typeof i.componentId !== "string" ||
+        !Number.isInteger(i.quantity) ||
+        i.quantity < 1 ||
+        i.quantity > 100,
+    )
+  )
+    throw Object.assign(new Error("Invalid cart quantities"), {
+      statusCode: 400,
     });
-
-  await prisma.$transaction([
-    prisma.cartItem.deleteMany({ where: { cartId: cart.id } }),
-    ...validItems.map((item) =>
-      prisma.cartItem.create({ data: { cartId: cart.id, ...item } }),
-    ),
-    prisma.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } }),
-  ]);
-
+  const cart = await getOrCreateCart(userId);
+  await prisma.$transaction(async (tx) => {
+    await lockCart(tx, cart.id);
+    const components = await tx.component.findMany({
+      where: { id: { in: items.map((i) => i.componentId) }, isActive: true },
+    });
+    const unique = [...new Map(items.map((i) => [i.componentId, i])).values()];
+    const valid = unique.filter((i) =>
+      components.some(
+        (c) => c.id === i.componentId && c.stockQuantity >= i.quantity,
+      ),
+    );
+    await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+    if (valid.length)
+      await tx.cartItem.createMany({
+        data: valid.map((i) => ({ ...i, cartId: cart.id })),
+      });
+    await tx.cart.update({
+      where: { id: cart.id },
+      data: { updatedAt: new Date() },
+    });
+  });
   return getCart(userId);
 }

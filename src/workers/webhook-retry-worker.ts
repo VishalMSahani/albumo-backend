@@ -1,3 +1,4 @@
+import { queuePrefix } from "../lib/queue-config.js";
 import { Worker, type Job } from "bullmq";
 import { createBullMQConnection } from "../lib/redis.js";
 import type { WebhookRetryJobData } from "../lib/queue.js";
@@ -30,6 +31,7 @@ export function startWebhookRetryWorker(): Worker<WebhookRetryJobData> | null {
 
   worker = new Worker<WebhookRetryJobData>("webhook-retry", processWebhookJob, {
     connection: createBullMQConnection(),
+    prefix: queuePrefix,
     concurrency: 5,
   });
 

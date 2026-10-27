@@ -1,3 +1,4 @@
+import { queuePrefix } from "./queue-config.js";
 import { Queue } from "bullmq";
 import { createBullMQConnection } from "./redis.js";
 import type { EmailEventType } from "../generated/prisma/client.js";
@@ -20,6 +21,7 @@ export function getEmailQueue(): Queue<EmailJobData> | null {
   if (!_emailQueue) {
     _emailQueue = new Queue<EmailJobData>("emails", {
       connection: createBullMQConnection(),
+      prefix: queuePrefix,
       defaultJobOptions: {
         attempts: 3,
         backoff: { type: "exponential", delay: 5_000 },
@@ -54,6 +56,7 @@ export function getWebhookQueue(): Queue<WebhookRetryJobData> | null {
   if (!_webhookQueue) {
     _webhookQueue = new Queue<WebhookRetryJobData>("webhook-retry", {
       connection: createBullMQConnection(),
+      prefix: queuePrefix,
       defaultJobOptions: {
         attempts: 5,
         backoff: { type: "exponential", delay: 10_000 },
@@ -84,6 +87,7 @@ export function getStockQueue(): Queue<StockSyncJobData> | null {
   if (!_stockQueue) {
     _stockQueue = new Queue<StockSyncJobData>("stock-sync", {
       connection: createBullMQConnection(),
+      prefix: queuePrefix,
       defaultJobOptions: {
         attempts: 3,
         backoff: { type: "fixed", delay: 30_000 },
@@ -115,6 +119,7 @@ export function getTrackingQueue(): Queue<TrackingPollJobData> | null {
   if (!_trackingQueue) {
     _trackingQueue = new Queue<TrackingPollJobData>("tracking-poll", {
       connection: createBullMQConnection(),
+      prefix: queuePrefix,
       defaultJobOptions: {
         attempts: 3,
         backoff: { type: "exponential", delay: 5_000 },

@@ -3,13 +3,14 @@
  * Input validation for component operations
  */
 
+import { catalogueFieldsSchema, parseCatalogueFields } from "./catalogue.js";
 import type {
   ComponentProductType,
   CreateComponentRequest,
   UpdateComponentRequest,
   ComponentFilters,
 } from "../types/component.types.js";
-import { productDetailsSchema, parseProductDetails } from './product-details.js';
+import { productDetailsSchema, parseProductDetails } from "./product-details.js";
 
 export interface ValidationResult<T> {
   success: boolean;
@@ -77,10 +78,22 @@ function parseBoolean(value: unknown): boolean | undefined {
 /**
  * Validate component creation data
  */
-export function validateCreateComponent(data: any): ValidationResult<CreateComponentRequest> {
+export function validateCreateComponent(
+  data: any,
+): ValidationResult<CreateComponentRequest> {
   const errors: string[] = [];
+  const catalogue = catalogueFieldsSchema.safeParse(data);
+  if (!catalogue.success)
+    errors.push(
+      ...catalogue.error.issues.map(
+        (issue) => issue.path.join(".") + ": " + issue.message,
+      ),
+    );
   const details = productDetailsSchema.safeParse(data);
-  if (!details.success) errors.push(...details.error.issues.map(issue => issue.path.join('.') + ': ' + issue.message));
+  if (!details.success)
+    errors.push(
+      ...details.error.issues.map((issue) => issue.path.join(".") + ": " + issue.message),
+    );
 
   // Name validation
   if (!data.name || typeof data.name !== "string" || data.name.trim().length === 0) {
@@ -162,6 +175,7 @@ export function validateCreateComponent(data: any): ValidationResult<CreateCompo
     name: data.name.trim(),
     unitPriceCents: Math.round(data.unitPriceCents),
     ...parseProductDetails(data),
+    ...parseCatalogueFields(data),
   };
 
   if (data.slug?.trim()) result.slug = data.slug.trim();
@@ -182,7 +196,8 @@ export function validateCreateComponent(data: any): ValidationResult<CreateCompo
   if (isRobomaniacItem !== undefined) result.isRobomaniacItem = isRobomaniacItem;
   const isSoftware = parseBoolean(data.isSoftware);
   if (isSoftware !== undefined) result.isSoftware = isSoftware;
-  if (data.stockQuantity !== undefined) result.stockQuantity = Math.round(data.stockQuantity);
+  if (data.stockQuantity !== undefined)
+    result.stockQuantity = Math.round(data.stockQuantity);
   const isActive = parseBoolean(data.isActive);
   if (isActive !== undefined) result.isActive = isActive;
   // Discounted price (sale price)
@@ -202,10 +217,22 @@ export function validateCreateComponent(data: any): ValidationResult<CreateCompo
 /**
  * Validate component update data
  */
-export function validateUpdateComponent(data: any): ValidationResult<UpdateComponentRequest> {
+export function validateUpdateComponent(
+  data: any,
+): ValidationResult<UpdateComponentRequest> {
   const errors: string[] = [];
+  const catalogue = catalogueFieldsSchema.safeParse(data);
+  if (!catalogue.success)
+    errors.push(
+      ...catalogue.error.issues.map(
+        (issue) => issue.path.join(".") + ": " + issue.message,
+      ),
+    );
   const details = productDetailsSchema.safeParse(data);
-  if (!details.success) errors.push(...details.error.issues.map(issue => issue.path.join('.') + ': ' + issue.message));
+  if (!details.success)
+    errors.push(
+      ...details.error.issues.map((issue) => issue.path.join(".") + ": " + issue.message),
+    );
 
   // At least one field must be provided
   if (Object.keys(data).length === 0) {
@@ -266,7 +293,11 @@ export function validateUpdateComponent(data: any): ValidationResult<UpdateCompo
   }
 
   // URL validations (if provided)
-  if (data.vendorLink !== undefined && data.vendorLink && typeof data.vendorLink === "string") {
+  if (
+    data.vendorLink !== undefined &&
+    data.vendorLink &&
+    typeof data.vendorLink === "string"
+  ) {
     try {
       new URL(data.vendorLink);
     } catch {
@@ -289,17 +320,25 @@ export function validateUpdateComponent(data: any): ValidationResult<UpdateCompo
     };
   }
 
-  const updateData: UpdateComponentRequest = parseProductDetails(data);
+  const updateData: UpdateComponentRequest = {
+    ...parseProductDetails(data),
+    ...parseCatalogueFields(data),
+  };
 
   if (data.name !== undefined) updateData.name = data.name.trim();
   if (data.slug !== undefined) updateData.slug = data.slug?.trim() || undefined;
   if (data.sku !== undefined) updateData.sku = data.sku?.trim() || null;
-  if (data.description !== undefined) updateData.description = data.description?.trim() || null;
-  if (data.typicalUseCase !== undefined) updateData.typicalUseCase = data.typicalUseCase?.trim() || null;
-  if (data.vendorLink !== undefined) updateData.vendorLink = data.vendorLink?.trim() || null;
+  if (data.description !== undefined)
+    updateData.description = data.description?.trim() || null;
+  if (data.typicalUseCase !== undefined)
+    updateData.typicalUseCase = data.typicalUseCase?.trim() || null;
+  if (data.vendorLink !== undefined)
+    updateData.vendorLink = data.vendorLink?.trim() || null;
   if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl?.trim() || null;
-  if (data.category !== undefined) updateData.category = data.category?.trim() || "Electronics Components";
-  if (data.subcategory !== undefined) updateData.subcategory = data.subcategory?.trim() || "General";
+  if (data.category !== undefined)
+    updateData.category = data.category?.trim() || "Electronics Components";
+  if (data.subcategory !== undefined)
+    updateData.subcategory = data.subcategory?.trim() || "General";
   if (data.productType !== undefined) updateData.productType = data.productType;
   if (data.brand !== undefined) updateData.brand = data.brand?.trim() || null;
   const tags = parseStringArray(data.tags);
@@ -310,8 +349,10 @@ export function validateUpdateComponent(data: any): ValidationResult<UpdateCompo
   if (isRobomaniacItem !== undefined) updateData.isRobomaniacItem = isRobomaniacItem;
   const isSoftware = parseBoolean(data.isSoftware);
   if (isSoftware !== undefined) updateData.isSoftware = isSoftware;
-  if (data.unitPriceCents !== undefined) updateData.unitPriceCents = Math.round(data.unitPriceCents);
-  if (data.stockQuantity !== undefined) updateData.stockQuantity = Math.round(data.stockQuantity);
+  if (data.unitPriceCents !== undefined)
+    updateData.unitPriceCents = Math.round(data.unitPriceCents);
+  if (data.stockQuantity !== undefined)
+    updateData.stockQuantity = Math.round(data.stockQuantity);
   const isActive = parseBoolean(data.isActive);
   if (isActive !== undefined) updateData.isActive = isActive;
   // Discounted price (sale price)

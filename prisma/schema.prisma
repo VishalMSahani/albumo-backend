@@ -27,6 +27,10 @@ enum AuthProvider {
 }
 
 enum EmailEventType {
+  ADMIN_NOTIFICATION
+  NEWSLETTER_WELCOME
+  MARKETING_CAMPAIGN
+  CUSTOM_EMAIL
   BULK_ORDER_UPDATED
   USER_SIGNUP
   USER_EMAIL_VERIFICATION
@@ -207,6 +211,7 @@ enum PrintModelFormat {
 }
 
 enum PrintStorageProvider {
+  R2
   AZURE
   LOCAL
 }
@@ -380,6 +385,7 @@ model User {
 
   // Project & orders
   createdProjects      Project[]
+  studioProjects       StudioProject[]
   orders               Order[]
   addresses            Address[]
   aiGenerationRequests AIGenerationRequest[]
@@ -419,6 +425,127 @@ model User {
   // Customer support
   supportTickets         SupportTicket[] @relation("SupportTicketRequester")
   assignedSupportTickets SupportTicket[] @relation("SupportTicketAssignee")
+}
+
+// Album drafts are separate from the inherited electronics Project domain.
+model StudioProject {
+  id            String   @id @default(uuid()) @db.Uuid
+  ownerId       String
+  owner         User     @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  title         String   @db.VarChar(120)
+  occasion      String   @db.VarChar(24)
+  revision      Int      @default(1)
+  archivedAt    DateTime? @db.Timestamptz(3)
+  trashedAt     DateTime? @db.Timestamptz(3)
+  deletedAt     DateTime? @db.Timestamptz(3)
+  requestId     String   @db.Uuid
+  requestHash   String   @db.VarChar(64)
+  createdAt     DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @db.Timestamptz(3)
+  productId     String?
+  configuration Json?
+  pageCount     Int?
+  minimumPhotos Int?
+  recommendedPhotos Int?
+  document      Json?
+  proof         Json?
+  cleanupAttempts Int @default(0)
+  cleanupLastAt DateTime? @db.Timestamptz(3)
+  cleanupError String? @db.VarChar(80)
+  assets        StudioAsset[]
+  invites       StudioInvite[]
+  reviewStatus  String @default("UNREVIEWED") @db.VarChar(24)
+  reviewRevision Int?
+  reviewNote    String? @db.VarChar(1000)
+  reviewedAt    DateTime? @db.Timestamptz(3)
+  activity      StudioActivity[]
+  orderLinks    StudioOrderLink[]
+  cartItems     StudioCartItem[]
+
+  @@unique([ownerId, requestId])
+  @@index([ownerId, archivedAt, createdAt, id])
+  @@index([trashedAt, deletedAt])
+}
+
+model StudioActivity {
+  id        String @id @default(uuid()) @db.Uuid
+  projectId String @db.Uuid
+  project   StudioProject @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  actorId   String
+  action    String @db.VarChar(40)
+  note      String @db.VarChar(1000)
+  metadata  Json?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([projectId, createdAt, id])
+}
+
+model StudioOrderLink {
+  id        String @id @default(uuid()) @db.Uuid
+  projectId String @db.Uuid
+  project   StudioProject @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  orderItemId String @unique
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  revision  Int
+  snapshot  Json
+  printApproval Json?
+  actorId   String
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([projectId])
+}
+
+model StudioInvite {
+  id          String @id @default(uuid()) @db.Uuid
+  projectId   String @db.Uuid
+  project     StudioProject @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  tokenHash   String @unique @db.VarChar(64)
+  expiresAt   DateTime @db.Timestamptz(3)
+  revokedAt   DateTime? @db.Timestamptz(3)
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  guests      StudioGuestSession[]
+  @@index([projectId])
+}
+
+model StudioGuestSession {
+  id          String @id @default(uuid()) @db.Uuid
+  inviteId    String @db.Uuid
+  invite      StudioInvite @relation(fields: [inviteId], references: [id], onDelete: Restrict)
+  tokenHash   String @unique @db.VarChar(64)
+  displayName String @db.VarChar(80)
+  expiresAt   DateTime @db.Timestamptz(3)
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  assets      StudioAsset[]
+  @@index([inviteId])
+}
+
+model StudioAsset {
+  id          String @id @default(uuid()) @db.Uuid
+  projectId   String @db.Uuid
+  project     StudioProject @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  guestId     String? @db.Uuid
+  guest       StudioGuestSession? @relation(fields: [guestId], references: [id], onDelete: Restrict)
+  requestId   String @db.Uuid
+  uploaderKey String @db.VarChar(100)
+  filename    String @db.VarChar(180)
+  mimeType    String @db.VarChar(40)
+  byteSize    Int
+  status      String @default("UPLOADING") @db.VarChar(20)
+  selected    Boolean @default(true)
+  stagingKey  String @unique
+  originalKey String?
+  previewKey  String?
+  checksum    String? @db.VarChar(64)
+  width       Int?
+  height      Int?
+  errorCode   String? @db.VarChar(50)
+  expiresAt   DateTime @db.Timestamptz(3)
+  leaseUntil  DateTime? @db.Timestamptz(3)
+  leaseToken  String? @db.Uuid
+  attempts    Int @default(0)
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
+  @@unique([projectId, uploaderKey, requestId])
+  @@index([projectId, createdAt, id])
+  @@index([status, leaseUntil])
 }
 
 // OAuth / provider accounts (Google, GitHub, etc.)
@@ -518,6 +645,25 @@ model AuthThrottle {
 }
 
 model EmailNotification {
+  text String? @db.Text
+  channel String @default("TRANSACTIONAL")
+  status String @default("QUEUED")
+  fromAddress String?
+  replyTo String?
+  headers Json?
+  dedupeKey String? @unique
+  providerMessageId String? @unique
+  providerEventAt DateTime? @db.Timestamptz(6)
+  deliveredAt DateTime? @db.Timestamptz(6)
+  openedAt DateTime? @db.Timestamptz(6)
+  clickedAt DateTime? @db.Timestamptz(6)
+  lockedUntil DateTime? @db.Timestamptz(6)
+  nextAttemptAt DateTime @default(now()) @db.Timestamptz(6)
+  firstAttemptAt DateTime? @db.Timestamptz(6)
+  campaignId String?
+  subscriberId String?
+  ticketId String?
+  campaign EmailCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   id        String         @id @default(cuid())
   userId    String?
   email     String
@@ -544,6 +690,8 @@ model EmailNotification {
   @@index([eventType, isSent])
   @@index([createdAt])
   @@index([isSent, retryCount])
+  @@index([status, nextAttemptAt])
+  @@index([campaignId])
 }
 
 // ========================================
@@ -748,6 +896,9 @@ model Subcategory {
   imageUrl    String?
   isActive    Boolean @default(true)
 
+  configuration Json?
+  products Component[]
+
   category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now()) @db.Timestamptz(6)
@@ -763,6 +914,7 @@ model Subcategory {
 // ========================================
 
 model Component {
+  studioCartItems StudioCartItem[]
   id             String  @id @default(cuid())
   name           String
   slug           String? @unique // SEO-friendly URL identifier e.g. "hc-05-bluetooth-module"
@@ -774,6 +926,10 @@ model Component {
   warranty        String? @db.Text
   vendorLink     String?
   imageUrl       String?
+
+  subcategoryId String?
+  catalogueCategory Subcategory? @relation(fields: [subcategoryId], references: [id], onDelete: Restrict)
+  configuration Json?
 
   category         String               @default("Electronics Components")
   subcategory      String               @default("General")
@@ -804,6 +960,7 @@ model Component {
 
   @@index([slug])
   @@index([isActive])
+  @@index([subcategoryId])
   @@index([category, subcategory])
   @@index([productType])
   @@index([isBestSeller])
@@ -1034,6 +1191,7 @@ model Order {
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   address Address @relation(fields: [addressId], references: [id], onDelete: Restrict)
 
+  checkoutAttempt CheckoutAttempt?
   items            OrderItem[]
   payments         Payment[]
   threeDPrintOrder ThreeDPrintOrder?
@@ -1062,6 +1220,8 @@ model OrderItem {
   order     Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
   kit       Kit?       @relation(fields: [kitId], references: [id], onDelete: SetNull)
   component Component? @relation(fields: [componentId], references: [id], onDelete: SetNull)
+
+  studioAlbum StudioOrderLink?
 
   createdAt DateTime @default(now()) @db.Timestamptz(6)
 
@@ -1102,6 +1262,7 @@ model Cart {
   userId    String     @unique
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   items     CartItem[]
+  studioItems StudioCartItem[]
   updatedAt DateTime   @updatedAt @db.Timestamptz(6)
 }
 
@@ -1121,6 +1282,36 @@ model CartItem {
 // ========================================
 // COUPONS
 // ========================================
+
+model StudioCartItem {
+  id String @id @default(uuid()) @db.Uuid
+  cartId String
+  cart Cart @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  projectId String @db.Uuid
+  project StudioProject @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  productId String
+  product Component @relation(fields: [productId], references: [id], onDelete: Restrict)
+  revision Int
+  version Int @default(1)
+  quantity Int
+  snapshot Json
+  addedAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  @@unique([cartId, projectId])
+  @@index([projectId])
+}
+
+model CheckoutAttempt {
+  id String @id @default(uuid()) @db.Uuid
+  userId String
+  requestId String @db.Uuid
+  requestHash String @db.VarChar(64)
+  orderId String @unique
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  summary Json
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@unique([userId, requestId])
+}
 
 model Coupon {
   id            String       @id @default(cuid())
@@ -1711,4 +1902,129 @@ model CareerApplication {
 
   @@index([userId])
   @@index([status])
+}
+
+model StagedUpload {
+  key String @id
+  ownerId String?
+  path String
+  size Int
+  contentType String
+  expiresAt DateTime @db.Timestamptz(6)
+  consumedAt DateTime? @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  @@index([expiresAt])
+}
+
+model EmailCampaign {
+  id String @id @default(cuid())
+  name String
+  subject String
+  body String @db.Text
+  design Json @default("{}")
+  status String @default("DRAFT")
+  queuedAt DateTime? @db.Timestamptz(6)
+  recipientCount Int @default(0)
+  createdById String?
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+  emails EmailNotification[]
+}
+
+model EmailSuppression {
+  email String @id
+  reason String
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model EmailWebhookEvent {
+  id String @id
+  type String
+  payload Json
+  processedAt DateTime? @db.Timestamptz(6)
+  error String? @db.Text
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  @@index([processedAt, createdAt])
+}
+
+model InboundEmail {
+  id String @id @default(cuid())
+  providerId String @unique
+  fromEmail String
+  fromName String @default("")
+  recipients Json
+  subject String
+  text String @db.Text
+  messageId String?
+  attachments Json @default("[]")
+  authenticated Boolean @default(false)
+  status String @default("NEW")
+  ticketId String?
+  receivedAt DateTime @default(now()) @db.Timestamptz(6)
+  @@index([status, receivedAt])
+}
+
+enum PartnerType {
+  TRAVEL_AGENCY
+  PHOTOGRAPHER
+  WEDDING_PLANNER
+  CORPORATE_EVENTS
+  REAL_ESTATE
+  OTHER
+}
+
+enum PartnerInquiryStatus {
+  NEW
+  CONTACTED
+  IN_DISCUSSION
+  ONBOARDED
+  DECLINED
+}
+
+model PartnerInquiry {
+  id              String               @id @default(cuid())
+  partnerType     PartnerType
+  status          PartnerInquiryStatus @default(NEW)
+  name            String
+  email           String
+  phone           String
+  companyName     String?
+  website         String?
+  city            String?
+  message         String               @db.Text
+  expectedVolume  String?
+  adminNotes      String?              @db.Text
+  contactConsentAt DateTime?           @db.Timestamptz(6)
+  directoryConsent Boolean             @default(false)
+  directoryConsentAt DateTime?         @db.Timestamptz(6)
+  publicName      String?
+  publicDescription String?            @db.Text
+  publicCity      String?
+  publicWebsite   String?
+  isPublished     Boolean              @default(false)
+  createdAt       DateTime             @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime             @updatedAt @db.Timestamptz(6)
+
+  @@index([partnerType])
+  @@index([isPublished, partnerType])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model StudioOperationSetting {
+  id Int @id @default(1)
+  revision Int @default(0)
+  policy Json
+  updatedBy String?
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  workerHeartbeatAt DateTime? @db.Timestamptz(3)
+  workerLastSuccessAt DateTime? @db.Timestamptz(3)
+  workerError String? @db.VarChar(80)
+}
+model StudioPolicyAudit {
+  id String @id @default(uuid()) @db.Uuid
+  revision Int
+  actorId String
+  policy Json
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
 }

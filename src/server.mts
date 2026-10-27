@@ -2,7 +2,12 @@ import { initSentry, Sentry } from "./lib/sentry.js";
 initSentry(); // Must be first
 
 import helmetModule, { type HelmetOptions } from "helmet";
-import express, { type Express, type Request, type RequestHandler, type Response } from "express";
+import express, {
+  type Express,
+  type Request,
+  type RequestHandler,
+  type Response,
+} from "express";
 import cors, { type CorsOptions } from "cors";
 import cookieParser from "cookie-parser";
 import { rateLimit } from "express-rate-limit";
@@ -11,21 +16,39 @@ import { logger } from "./lib/logger.js";
 import { secureDeployment } from "./utils/auth-security.js";
 import { prisma } from "./lib/prisma.js";
 import { redis } from "./lib/redis.js";
-import { startEmailWorker, stopEmailWorker } from "./workers/email-bullmq-worker.js";
-import { startWebhookRetryWorker, stopWebhookRetryWorker } from "./workers/webhook-retry-worker.js";
-import { startStockSyncWorker, stopStockSyncWorker } from "./workers/stock-sync-worker.js";
-import { startTrackingPollWorker, stopTrackingPollWorker } from "./workers/tracking-poll-worker.js";
-
+import {
+  startEmailWorker,
+  stopEmailWorker,
+} from "./workers/email-bullmq-worker.js";
+import {
+  startWebhookRetryWorker,
+  stopWebhookRetryWorker,
+} from "./workers/webhook-retry-worker.js";
+import {
+  startStockSyncWorker,
+  stopStockSyncWorker,
+} from "./workers/stock-sync-worker.js";
+import {
+  startTrackingPollWorker,
+  stopTrackingPollWorker,
+} from "./workers/tracking-poll-worker.js";
 
 import authRoutes from "./routes/authRoutes.js";
 import emailRoutes from "./routes/emailRoutes.js";
+import { emailWorkspaceRoutes } from "./routes/emailWorkspaceRoutes.js";
+import { emailPreferencesRoutes } from "./routes/emailPreferencesRoutes.js";
+import { verifyResendWebhook } from "./services/resend-webhook-signature.js";
+import { saveEmailWebhook } from "./services/email-webhook.service.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import componentRoutes from "./features/components/routes/component.routes.js";
+import studioAdminRoutes from "./features/studio/admin.routes.js";
+import studioProjectRoutes from "./features/studio/projects/project.routes.js";
 import projectRoutes from "./features/projects/routes/project.routes.js";
 import orderRoutes from "./features/orders/routes/order.routes.js";
 import addressRoutes from "./features/addresses/routes/address.routes.js";
 import couponRoutes from "./features/coupons/routes/coupon.routes.js";
 import categoryRoutes from "./features/categories/routes/category.routes.js";
+import checkoutRoutes from "./features/checkout/checkout.routes.js";
 import cartRoutes from "./features/cart/routes/cart.routes.js";
 import wishlistRoutes from "./features/wishlist/routes/wishlist.routes.js";
 import paymentRoutes from "./features/payments/routes/payment.routes.js";
@@ -42,16 +65,25 @@ import threeDPrintingRoutes from "./features/three-d-printing/routes/three-d-pri
 import legalRoutes from "./features/legal/legal.routes.js";
 import supportRoutes from "./features/support/support.routes.js";
 import contactRoutes from "./features/contact/contact.routes.js";
+import partnerRoutes from "./features/partners/partner.routes.js";
 import uploadTransportRoutes from "./routes/uploadTransportRoutes.js";
 import jobRoutes from "./routes/jobRoutes.js";
 import whatsappWebhookRoutes from "./features/whatsapp/whatsapp-webhook.routes.js";
-import { errorHandler, notFoundHandler } from "./middlewares/error.middleware.js";
-import { csrfProtection, csrfTokenHandler } from "./middlewares/csrf.middleware.js";
+import {
+  errorHandler,
+  notFoundHandler,
+} from "./middlewares/error.middleware.js";
+import {
+  csrfProtection,
+  csrfTokenHandler,
+} from "./middlewares/csrf.middleware.js";
 
 const app: Express = express();
 // Vercel's secondary compiler resolves Helmet's CommonJS declaration as a namespace.
 // Both runtime entrypoints export the same callable middleware factory.
-const helmet = helmetModule as unknown as (options?: Readonly<HelmetOptions>) => RequestHandler;
+const helmet = helmetModule as unknown as (
+  options?: Readonly<HelmetOptions>,
+) => RequestHandler;
 
 // Preserve the originating client IP behind the production reverse proxy.
 app.set("trust proxy", 1);
@@ -65,13 +97,17 @@ app.use((req: Request, res: Response, next) => {
 });
 
 const PORT = process.env.PORT || 4000;
-const NODE_ENV = secureDeployment() ? "production" : (process.env.NODE_ENV || "development");
+const NODE_ENV = secureDeployment()
+  ? "production"
+  : process.env.NODE_ENV || "development";
 
 // Security middleware
-app.use(helmet({
-  contentSecurityPolicy: NODE_ENV === "production",
-  crossOriginEmbedderPolicy: NODE_ENV === "production",
-}));
+app.use(
+  helmet({
+    contentSecurityPolicy: NODE_ENV === "production",
+    crossOriginEmbedderPolicy: NODE_ENV === "production",
+  }),
+);
 
 // CORS configuration
 const configuredOrigins = (process.env.CORS_ALLOWED_ORIGINS || "")
@@ -79,27 +115,39 @@ const configuredOrigins = (process.env.CORS_ALLOWED_ORIGINS || "")
   .map(normalizeOrigin)
   .filter(Boolean);
 
-const vercelOrigin = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "";
+const vercelOrigin = process.env.VERCEL_URL
+  ? `https://${process.env.VERCEL_URL}`
+  : "";
 
-const allowedOrigins = Array.from(new Set([
-  process.env.FRONTEND_URL || "http://localhost:3000",
-  process.env.ADMIN_FRONTEND_URL || "http://localhost:3002",
-  "https://admin.roboroot.in",
-  "https://roboroot.in",
-  "https://www.roboroot.in",
-  "https://shop.robomaniac.in",
-  "https://www.robomaniac.in",
-  vercelOrigin,
-  ...configuredOrigins,
-  "http://localhost:3000",
-  "http://localhost:3001",
-  "http://localhost:3002",
-  "http://localhost:5173",
-  "http://127.0.0.1:3000",
-  "http://127.0.0.1:3001",
-  "http://127.0.0.1:3002",
-  "http://127.0.0.1:5173",
-].map(normalizeOrigin).filter(origin => Boolean(origin) && (NODE_ENV !== "production" || origin.startsWith("https://")))));
+const allowedOrigins = Array.from(
+  new Set(
+    [
+      process.env.FRONTEND_URL || "http://localhost:3000",
+      process.env.ADMIN_FRONTEND_URL || "http://localhost:3002",
+      "https://admin.roboroot.in",
+      "https://roboroot.in",
+      "https://www.roboroot.in",
+      "https://shop.robomaniac.in",
+      "https://www.robomaniac.in",
+      vercelOrigin,
+      ...configuredOrigins,
+      "http://localhost:3000",
+      "http://localhost:3001",
+      "http://localhost:3002",
+      "http://localhost:5173",
+      "http://127.0.0.1:3000",
+      "http://127.0.0.1:3001",
+      "http://127.0.0.1:3002",
+      "http://127.0.0.1:5173",
+    ]
+      .map(normalizeOrigin)
+      .filter(
+        (origin) =>
+          Boolean(origin) &&
+          (NODE_ENV !== "production" || origin.startsWith("https://")),
+      ),
+  ),
+);
 
 function normalizeOrigin(origin: string) {
   const trimmed = origin.trim().replace(/\/$/, "");
@@ -118,7 +166,10 @@ function isAllowedLocalDevOrigin(origin: string) {
 
   try {
     const { hostname, protocol } = new URL(origin);
-    const isLocalHost = hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+    const isLocalHost =
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "[::1]";
     return isLocalHost && (protocol === "http:" || protocol === "https:");
   } catch {
     return false;
@@ -136,7 +187,10 @@ function isAllowedOrigin(origin: string | undefined) {
 }
 
 const corsOptions: CorsOptions = {
-  origin(origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
+  origin(
+    origin: string | undefined,
+    callback: (err: Error | null, allow?: boolean) => void,
+  ) {
     if (isAllowedOrigin(origin)) {
       callback(null, true);
       return;
@@ -156,15 +210,62 @@ app.use(cors(corsOptions));
 app.use(cookieParser());
 
 // Payment webhooks need raw bytes for gateway signature verification.
-app.use("/api/payments/webhook/razorpay", express.raw({ type: "application/json" }));
-app.use("/api/payments/webhook/zoho", express.raw({ type: "application/json" }));
+app.use(
+  "/api/payments/webhook/razorpay",
+  express.raw({ type: "application/json" }),
+);
+app.use(
+  "/api/payments/webhook/zoho",
+  express.raw({ type: "application/json" }),
+);
 // Meta signs the exact request bytes, so this endpoint must be parsed before
 // the general JSON parser below.
-app.use("/webhooks/whatsapp", express.raw({ type: "application/json", limit: "1mb" }));
+app.use(
+  "/webhooks/whatsapp",
+  express.raw({ type: "application/json", limit: "1mb" }),
+);
+
+app.post(
+  "/api/webhooks/resend",
+  express.raw({ type: "application/json", limit: "512kb" }),
+  async (req, res) => {
+    const secret = process.env.RESEND_WEBHOOK_SECRET;
+    if (!secret) {
+      res.status(503).json({ error: "Email webhook is not configured" });
+      return;
+    }
+    let payload;
+    try {
+      payload = verifyResendWebhook(
+        req.body,
+        {
+          id: req.get("svix-id"),
+          timestamp: req.get("svix-timestamp"),
+          signature: req.get("svix-signature"),
+        },
+        secret,
+      );
+    } catch {
+      res.status(400).json({ error: "Invalid webhook signature" });
+      return;
+    }
+    try {
+      await saveEmailWebhook(req.get("svix-id")!, payload);
+      res.json({ success: true });
+    } catch {
+      res.status(503).json({ error: "Event saved for retry" });
+    }
+  },
+);
 
 // Body parsing middleware
+import { guestCollectionRoutes } from './features/studio/collection.routes.js';
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use('/api/studio/guest', guestCollectionRoutes);
+
+// Signed unsubscribe tokens authorize only newsletter opt-out; GET is confirmation only.
+app.use("/api/email-preferences", emailPreferencesRoutes);
 
 // CSRF token endpoint (must be BEFORE csrfProtection middleware)
 app.get("/api/auth/csrf-token", csrfTokenHandler);
@@ -220,7 +321,10 @@ app.get("/health", async (req: Request, res: Response) => {
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
-  message: { success: false, error: "Too many attempts. Please try again in 15 minutes." },
+  message: {
+    success: false,
+    error: "Too many attempts. Please try again in 15 minutes.",
+  },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -268,7 +372,8 @@ async function checkDatabaseHealth(): Promise<ServiceHealth> {
 }
 
 async function checkRedisHealth(): Promise<ServiceHealth> {
-  if (!redis) return { status: "disabled", message: "REDIS_URL not configured" };
+  if (!redis)
+    return { status: "disabled", message: "REDIS_URL not configured" };
 
   try {
     await redis.ping();
@@ -280,7 +385,10 @@ async function checkRedisHealth(): Promise<ServiceHealth> {
 }
 
 function getChatProviderName(): "nvidia" | "anthropic" {
-  return process.env.CHAT_LLM_PROVIDER === "nvidia" || process.env.NVIDIA_API_KEY ? "nvidia" : "anthropic";
+  return process.env.CHAT_LLM_PROVIDER === "nvidia" ||
+    process.env.NVIDIA_API_KEY
+    ? "nvidia"
+    : "anthropic";
 }
 
 function getChatModelName(): string {
@@ -291,11 +399,15 @@ function getChatModelName(): string {
 }
 
 function isChatProviderConfigured(): boolean {
-  return getChatProviderName() === "nvidia" ? Boolean(process.env.NVIDIA_API_KEY) : Boolean(process.env.ANTHROPIC_API_KEY);
+  return getChatProviderName() === "nvidia"
+    ? Boolean(process.env.NVIDIA_API_KEY)
+    : Boolean(process.env.ANTHROPIC_API_KEY);
 }
 
 function getEmbeddingProviderName(): "digitalocean" | "openai" {
-  return process.env.EMBEDDING_PROVIDER === "openai" ? "openai" : "digitalocean";
+  return process.env.EMBEDDING_PROVIDER === "openai"
+    ? "openai"
+    : "digitalocean";
 }
 
 function getEmbeddingModelName(): string {
@@ -307,7 +419,9 @@ function getEmbeddingModelName(): string {
 }
 
 function isEmbeddingProviderConfigured(): boolean {
-  return getEmbeddingProviderName() === "openai" ? Boolean(process.env.OPENAI_API_KEY) : Boolean(process.env.DIGITALOCEAN_TOKEN);
+  return getEmbeddingProviderName() === "openai"
+    ? Boolean(process.env.OPENAI_API_KEY)
+    : Boolean(process.env.DIGITALOCEAN_TOKEN);
 }
 
 app.use("/api/auth/login", authLimiter);
@@ -321,18 +435,23 @@ app.use("/api/internal", jobRoutes);
 app.use("/api/legal", legalRoutes);
 app.use("/api/support", supportRoutes);
 app.use("/api/contact", contactRoutes);
+app.use("/api/partners", partnerRoutes);
 app.use("/api/store-settings", storeSettingsRoutes);
 app.use("/api/3d-printing", orderLimiter, threeDPrintingRoutes);
+app.use("/api/emails", emailWorkspaceRoutes);
 app.use("/api/emails", emailRoutes);
 app.use("/api/admin", adminWriteLimiter, adminRoutes);
 app.use("/api/components", catalogLimiter, componentRoutes);
 app.use("/api/categories", catalogLimiter, categoryRoutes);
 app.use("/api/projects", catalogLimiter, projectRoutes);
+app.use("/api/studio/projects", studioProjectRoutes);
+app.use("/api/admin/studio", adminWriteLimiter, studioAdminRoutes);
 app.use("/api/orders", orderLimiter, orderRoutes);
 app.use("/api/addresses", addressRoutes);
 app.use("/api/admin/coupons", adminWriteLimiter, couponRoutes);
 app.use("/api/admin/products", adminWriteLimiter, bulkRoutes);
 app.use("/api/coupons", couponRoutes);
+app.use("/api/checkout", orderLimiter, checkoutRoutes);
 app.use("/api/cart", orderLimiter, cartRoutes);
 app.use("/api/wishlist", wishlistRoutes);
 app.use("/api/payments", orderLimiter, paymentRoutes);

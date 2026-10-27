@@ -9,6 +9,13 @@ import {
   UserRole,
 } from "../../generated/prisma/client.js";
 import { prisma } from "../../lib/prisma.js";
+import { emailConfig } from "../../services/email-config.js";
+import {
+  queueAdminNotice,
+  queueRawEmail,
+} from "../../services/email-notification.service.js";
+import { supportReplyAddress } from "../../services/email-tokens.js";
+import { getEmailTemplate } from "../../utils/email-templates.js";
 import { queueEmailNotification } from "../../services/email-notification.service.js";
 import { NotFoundError, ValidationError } from "../../utils/types.js";
 import type {
@@ -39,7 +46,10 @@ type ArticleQuery = {
   category?: Prisma.KnowledgeBaseArticleWhereInput["category"];
 };
 
-const slaHours: Record<SupportTicketPriority, { response: number; resolution: number }> = {
+const slaHours: Record<
+  SupportTicketPriority,
+  { response: number; resolution: number }
+> = {
   URGENT: { response: 2, resolution: 8 },
   HIGH: { response: 8, resolution: 24 },
   MEDIUM: { response: 24, resolution: 72 },
@@ -83,11 +93,11 @@ function deadlines(priority: SupportTicketPriority, startedAt = new Date()) {
 function createTicketNumber() {
   const now = new Date();
   const month = `${now.getUTCFullYear()}${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
-  return `RR-${month}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+  return `AL-${month}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
 }
 
 function frontendUrl() {
-  return (process.env.FRONTEND_URL || "http://localhost:3000").replace(/\/$/, "");
+  return emailConfig().siteUrl;
 }
 
 function ticketTrackingUrl(ticketNumber: string) {
@@ -105,9 +115,13 @@ function queueTicketEmail(
     priority: SupportTicketPriority;
     status: SupportTicketStatus;
   },
-  options: { userId?: string; message?: string; audience?: "CUSTOMER" | "SUPPORT" } = {},
+  options: {
+    userId?: string;
+    message?: string;
+    audience?: "CUSTOMER" | "SUPPORT";
+  } = {},
 ) {
-  void queueEmailNotification(
+  return queueEmailNotification(
     email,
     eventType,
     {
@@ -119,7 +133,9 @@ function queueTicketEmail(
       audience: options.audience ?? "CUSTOMER",
     },
     options.userId,
-  ).catch((error) => console.error("[Support] Could not queue ticket email", error));
+  ).catch((error) =>
+    console.error("[Support] Could not queue ticket email", error),
+  );
 }
 
 async function notifyTicketCreated(ticket: {
@@ -131,18 +147,33 @@ async function notifyTicketCreated(ticket: {
   priority: SupportTicketPriority;
   status: SupportTicketStatus;
 }) {
-  queueTicketEmail(ticket.requesterEmail, EmailEventType.SUPPORT_TICKET_CREATED, ticket, {
-    ...(ticket.userId ? { userId: ticket.userId } : {}),
-  });
+  await queueTicketEmail(
+    ticket.requesterEmail,
+    EmailEventType.SUPPORT_TICKET_CREATED,
+    ticket,
+    {
+      ...(ticket.userId ? { userId: ticket.userId } : {}),
+    },
+  );
 
-  const contact = await prisma.contactSetting.findUnique({ where: { id: 1 }, select: { email: true } }).catch(() => null);
-  const supportEmail = contact?.email || process.env.SUPPORT_EMAIL || process.env.FROM_EMAIL || process.env.SMTP_USER;
-  if (supportEmail && supportEmail.toLowerCase() !== ticket.requesterEmail.toLowerCase()) {
-    queueTicketEmail(supportEmail, EmailEventType.SUPPORT_TICKET_CREATED, ticket, { audience: "SUPPORT" });
+  const supportEmail = emailConfig().admin;
+  if (
+    supportEmail &&
+    supportEmail.toLowerCase() !== ticket.requesterEmail.toLowerCase()
+  ) {
+    await queueTicketEmail(
+      supportEmail,
+      EmailEventType.SUPPORT_TICKET_CREATED,
+      ticket,
+      { audience: "SUPPORT" },
+    );
   }
 }
 
-async function requesterFor(userId: string | undefined, input: CreateTicketInput) {
+async function requesterFor(
+  userId: string | undefined,
+  input: CreateTicketInput,
+) {
   if (!userId) {
     return { userId: null, name: input.name, email: input.email.toLowerCase() };
   }
@@ -152,18 +183,30 @@ async function requesterFor(userId: string | undefined, input: CreateTicketInput
     select: { id: true, name: true, email: true },
   });
   if (!user) throw new ValidationError("Your account could not be found");
-  return { userId: user.id, name: user.name || input.name, email: user.email.toLowerCase() };
+  return {
+    userId: user.id,
+    name: user.name || input.name,
+    email: user.email.toLowerCase(),
+  };
 }
 
-export async function createSupportTicket(input: CreateTicketInput, authenticatedUserId?: string, context?: { source: string; enquiry: Prisma.InputJsonObject }) {
+export async function createSupportTicket(
+  input: CreateTicketInput,
+  authenticatedUserId?: string,
+  context?: { source: string; enquiry: Prisma.InputJsonObject },
+) {
   const requester = await requesterFor(authenticatedUserId, input);
   if (input.orderId) {
-    if (!requester.userId) throw new ValidationError("Sign in to link an order to this ticket");
+    if (!requester.userId)
+      throw new ValidationError("Sign in to link an order to this ticket");
     const order = await prisma.order.findFirst({
       where: { id: input.orderId, userId: requester.userId },
       select: { id: true },
     });
-    if (!order) throw new ValidationError("The selected order could not be linked to this ticket");
+    if (!order)
+      throw new ValidationError(
+        "The selected order could not be linked to this ticket",
+      );
   }
 
   const now = new Date();
@@ -190,7 +233,7 @@ export async function createSupportTicket(input: CreateTicketInput, authenticate
             body: input.description,
           },
           {
-            authorName: "RoboRoot Support",
+            authorName: "Albumo Support",
             sender: SupportMessageSender.SYSTEM,
             body: "We received your request. A support specialist will review it within the response time shown above.",
           },
@@ -200,11 +243,16 @@ export async function createSupportTicket(input: CreateTicketInput, authenticate
     include: customerTicketInclude,
   });
 
-  void notifyTicketCreated(ticket).catch(error => console.error("[Support] Could not queue notifications", error));
+  await notifyTicketCreated(ticket).catch((error) =>
+    console.error("[Support] Could not queue notifications", error),
+  );
   return ticket;
 }
 
-function customerAccessWhere(ticketNumber: string, identity: CustomerIdentity): Prisma.SupportTicketWhereInput {
+function customerAccessWhere(
+  ticketNumber: string,
+  identity: CustomerIdentity,
+): Prisma.SupportTicketWhereInput {
   const normalizedEmail = identity.email?.trim().toLowerCase();
   if (identity.userId) {
     return {
@@ -215,16 +263,23 @@ function customerAccessWhere(ticketNumber: string, identity: CustomerIdentity): 
       ],
     };
   }
-  if (!normalizedEmail) throw new ValidationError("Enter the email used to create this ticket");
+  if (!normalizedEmail)
+    throw new ValidationError("Enter the email used to create this ticket");
   return { ticketNumber, requesterEmail: normalizedEmail };
 }
 
-export async function getCustomerTicket(ticketNumber: string, identity: CustomerIdentity) {
+export async function getCustomerTicket(
+  ticketNumber: string,
+  identity: CustomerIdentity,
+) {
   const ticket = await prisma.supportTicket.findFirst({
     where: customerAccessWhere(ticketNumber, identity),
     include: customerTicketInclude,
   });
-  if (!ticket) throw new NotFoundError("Ticket not found. Check the ticket number and email address");
+  if (!ticket)
+    throw new NotFoundError(
+      "Ticket not found. Check the ticket number and email address",
+    );
   return ticket;
 }
 
@@ -246,19 +301,25 @@ export async function addCustomerReply(
 ) {
   const ticket = await getCustomerTicket(ticketNumber, identity);
   if (ticket.status === SupportTicketStatus.CLOSED) {
-    throw new ValidationError("This ticket is closed. Create a new ticket if you still need help");
+    throw new ValidationError(
+      "This ticket is closed. Create a new ticket if you still need help",
+    );
   }
 
   const now = new Date();
-  return prisma.supportTicket.update({
+  const updated = await prisma.supportTicket.update({
     where: { id: ticket.id },
     data: {
-      status: ticket.status === SupportTicketStatus.RESOLVED
-        ? SupportTicketStatus.OPEN
-        : ticket.status === SupportTicketStatus.WAITING_FOR_CUSTOMER
-          ? SupportTicketStatus.IN_PROGRESS
-          : ticket.status,
-      resolvedAt: ticket.status === SupportTicketStatus.RESOLVED ? null : ticket.resolvedAt,
+      status:
+        ticket.status === SupportTicketStatus.RESOLVED
+          ? SupportTicketStatus.OPEN
+          : ticket.status === SupportTicketStatus.WAITING_FOR_CUSTOMER
+            ? SupportTicketStatus.IN_PROGRESS
+            : ticket.status,
+      resolvedAt:
+        ticket.status === SupportTicketStatus.RESOLVED
+          ? null
+          : ticket.resolvedAt,
       lastActivityAt: now,
       messages: {
         create: {
@@ -271,9 +332,22 @@ export async function addCustomerReply(
     },
     include: customerTicketInclude,
   });
+  await queueAdminNotice(
+    "Customer replied | " + ticket.ticketNumber,
+    ticket.subject +
+      "\n\n" +
+      message +
+      "\n\n" +
+      emailConfig().adminUrl +
+      "/support",
+    "support-reply:" + updated.messages.at(-1)?.id,
+  ).catch(() => undefined);
+  return updated;
 }
 
-function adminTicketWhere(input: TicketListQuery): Prisma.SupportTicketWhereInput {
+function adminTicketWhere(
+  input: TicketListQuery,
+): Prisma.SupportTicketWhereInput {
   const now = new Date();
   const dueSoon = new Date(now.getTime() + 4 * 60 * 60 * 1000);
   return {
@@ -284,6 +358,7 @@ function adminTicketWhere(input: TicketListQuery): Prisma.SupportTicketWhereInpu
     ...(input.search
       ? {
           OR: [
+            { id: input.search },
             { ticketNumber: { contains: input.search, mode: "insensitive" } },
             { subject: { contains: input.search, mode: "insensitive" } },
             { requesterName: { contains: input.search, mode: "insensitive" } },
@@ -296,14 +371,35 @@ function adminTicketWhere(input: TicketListQuery): Prisma.SupportTicketWhereInpu
       ? {
           OR: [
             { firstRespondedAt: null, firstResponseDueAt: { lt: now } },
-            { resolvedAt: null, status: { notIn: [SupportTicketStatus.RESOLVED, SupportTicketStatus.CLOSED] }, resolutionDueAt: { lt: now } },
+            {
+              resolvedAt: null,
+              status: {
+                notIn: [
+                  SupportTicketStatus.RESOLVED,
+                  SupportTicketStatus.CLOSED,
+                ],
+              },
+              resolutionDueAt: { lt: now },
+            },
           ],
         }
       : input.sla === "DUE_SOON"
         ? {
             OR: [
-              { firstRespondedAt: null, firstResponseDueAt: { gte: now, lte: dueSoon } },
-              { resolvedAt: null, status: { notIn: [SupportTicketStatus.RESOLVED, SupportTicketStatus.CLOSED] }, resolutionDueAt: { gte: now, lte: dueSoon } },
+              {
+                firstRespondedAt: null,
+                firstResponseDueAt: { gte: now, lte: dueSoon },
+              },
+              {
+                resolvedAt: null,
+                status: {
+                  notIn: [
+                    SupportTicketStatus.RESOLVED,
+                    SupportTicketStatus.CLOSED,
+                  ],
+                },
+                resolutionDueAt: { gte: now, lte: dueSoon },
+              },
             ],
           }
         : {}),
@@ -316,7 +412,13 @@ export async function getAdminSupportTickets(input: TicketListQuery) {
   const breachedWhere: Prisma.SupportTicketWhereInput = {
     OR: [
       { firstRespondedAt: null, firstResponseDueAt: { lt: now } },
-      { resolvedAt: null, status: { notIn: [SupportTicketStatus.RESOLVED, SupportTicketStatus.CLOSED] }, resolutionDueAt: { lt: now } },
+      {
+        resolvedAt: null,
+        status: {
+          notIn: [SupportTicketStatus.RESOLVED, SupportTicketStatus.CLOSED],
+        },
+        resolutionDueAt: { lt: now },
+      },
     ],
   };
   const [tickets, total, open, breached, unassigned] = await Promise.all([
@@ -328,9 +430,22 @@ export async function getAdminSupportTickets(input: TicketListQuery) {
       take: input.limit,
     }),
     prisma.supportTicket.count({ where }),
-    prisma.supportTicket.count({ where: { status: { notIn: [SupportTicketStatus.RESOLVED, SupportTicketStatus.CLOSED] } } }),
+    prisma.supportTicket.count({
+      where: {
+        status: {
+          notIn: [SupportTicketStatus.RESOLVED, SupportTicketStatus.CLOSED],
+        },
+      },
+    }),
     prisma.supportTicket.count({ where: breachedWhere }),
-    prisma.supportTicket.count({ where: { assignedToId: null, status: { notIn: [SupportTicketStatus.RESOLVED, SupportTicketStatus.CLOSED] } } }),
+    prisma.supportTicket.count({
+      where: {
+        assignedToId: null,
+        status: {
+          notIn: [SupportTicketStatus.RESOLVED, SupportTicketStatus.CLOSED],
+        },
+      },
+    }),
   ]);
   return {
     tickets,
@@ -345,7 +460,10 @@ export async function getAdminSupportTickets(input: TicketListQuery) {
 }
 
 export async function getAdminSupportTicket(id: string) {
-  const ticket = await prisma.supportTicket.findUnique({ where: { id }, include: adminTicketInclude });
+  const ticket = await prisma.supportTicket.findUnique({
+    where: { id },
+    include: adminTicketInclude,
+  });
   if (!ticket) throw new NotFoundError("Support ticket not found");
   return ticket;
 }
@@ -359,20 +477,37 @@ export async function updateAdminSupportTicket(
   const current = await getAdminSupportTicket(id);
   if (input.assignedToId) {
     const assignee = await prisma.user.findFirst({
-      where: { id: input.assignedToId, role: { in: [UserRole.ADMIN, UserRole.SUPER_ADMIN] }, isActive: true },
+      where: {
+        id: input.assignedToId,
+        role: { in: [UserRole.ADMIN, UserRole.SUPER_ADMIN] },
+        isActive: true,
+      },
       select: { id: true },
     });
-    if (!assignee) throw new ValidationError("Assignee must be an active administrator");
+    if (!assignee)
+      throw new ValidationError("Assignee must be an active administrator");
   }
 
   const now = new Date();
-  const statusChanged = Boolean(input.status && input.status !== current.status);
-  const priorityChanged = Boolean(input.priority && input.priority !== current.priority);
+  const statusChanged = Boolean(
+    input.status && input.status !== current.status,
+  );
+  const priorityChanged = Boolean(
+    input.priority && input.priority !== current.priority,
+  );
   const update: Prisma.SupportTicketUncheckedUpdateInput = {
     ...(input.status ? { status: input.status } : {}),
-    ...(input.priority ? { priority: input.priority, ...deadlines(input.priority, current.createdAt) } : {}),
-    ...(input.assignedToId !== undefined ? { assignedToId: input.assignedToId } : {}),
-    ...(input.status === SupportTicketStatus.RESOLVED || input.status === SupportTicketStatus.CLOSED
+    ...(input.priority
+      ? {
+          priority: input.priority,
+          ...deadlines(input.priority, current.createdAt),
+        }
+      : {}),
+    ...(input.assignedToId !== undefined
+      ? { assignedToId: input.assignedToId }
+      : {}),
+    ...(input.status === SupportTicketStatus.RESOLVED ||
+    input.status === SupportTicketStatus.CLOSED
       ? { resolvedAt: current.resolvedAt ?? now }
       : input.status
         ? { resolvedAt: null }
@@ -381,7 +516,11 @@ export async function updateAdminSupportTicket(
   };
 
   const ticket = await prisma.$transaction(async (tx) => {
-    const updated = await tx.supportTicket.update({ where: { id }, data: update, include: adminTicketInclude });
+    const updated = await tx.supportTicket.update({
+      where: { id },
+      data: update,
+      include: adminTicketInclude,
+    });
     if (statusChanged) {
       await tx.supportTicketMessage.create({
         data: {
@@ -392,15 +531,23 @@ export async function updateAdminSupportTicket(
           body: `Ticket status changed from ${current.status.replace(/_/g, " ")} to ${updated.status.replace(/_/g, " ")}.`,
         },
       });
-      return tx.supportTicket.findUniqueOrThrow({ where: { id }, include: adminTicketInclude });
+      return tx.supportTicket.findUniqueOrThrow({
+        where: { id },
+        include: adminTicketInclude,
+      });
     }
     return updated;
   });
 
   if (statusChanged || priorityChanged) {
-    queueTicketEmail(ticket.requesterEmail, EmailEventType.SUPPORT_TICKET_UPDATED, ticket, {
-      ...(ticket.userId ? { userId: ticket.userId } : {}),
-    });
+    await queueTicketEmail(
+      ticket.requesterEmail,
+      EmailEventType.SUPPORT_TICKET_UPDATED,
+      ticket,
+      {
+        ...(ticket.userId ? { userId: ticket.userId } : {}),
+      },
+    );
   }
   return ticket;
 }
@@ -413,43 +560,126 @@ export async function addAdminReply(
   adminName: string,
 ) {
   const current = await getAdminSupportTicket(id);
-  const now = new Date();
-  const isAwaitingSupport = current.status === SupportTicketStatus.OPEN || current.status === SupportTicketStatus.IN_PROGRESS;
-  const nextStatus = !isInternal && isAwaitingSupport
-    ? SupportTicketStatus.WAITING_FOR_CUSTOMER
-    : current.status;
-
-  const ticket = await prisma.supportTicket.update({
-    where: { id },
-    data: {
-      status: nextStatus,
-      firstRespondedAt: !isInternal && !current.firstRespondedAt ? now : current.firstRespondedAt,
-      lastActivityAt: now,
-      messages: {
-        create: {
-          authorId: adminId,
-          authorName: adminName,
-          sender: SupportMessageSender.SUPPORT,
-          body: message,
-          isInternal,
-        },
-      },
-    },
-    include: adminTicketInclude,
-  });
-
-  if (!isInternal) {
-    queueTicketEmail(ticket.requesterEmail, EmailEventType.SUPPORT_TICKET_REPLY, ticket, {
-      ...(ticket.userId ? { userId: ticket.userId } : {}),
-      message,
-    });
+  if (
+    !isInternal &&
+    (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(current.requesterEmail) ||
+      current.requesterEmail.endsWith(".invalid"))
+  ) {
+    throw new ValidationError(
+      "This ticket does not have a deliverable customer email address. Add an internal note instead.",
+    );
   }
-  return ticket;
+  const now = new Date();
+  const isAwaitingSupport =
+    current.status === SupportTicketStatus.OPEN ||
+    current.status === SupportTicketStatus.IN_PROGRESS;
+  const nextStatus =
+    !isInternal && isAwaitingSupport
+      ? SupportTicketStatus.WAITING_FOR_CUSTOMER
+      : current.status;
+
+  // A public reply and its email enter the database together, or neither does.
+  return prisma.$transaction(async (tx) => {
+    const ticket = await tx.supportTicket.update({
+      where: { id },
+      data: {
+        status: nextStatus,
+        firstRespondedAt:
+          !isInternal && !current.firstRespondedAt
+            ? now
+            : current.firstRespondedAt,
+        lastActivityAt: now,
+      },
+      include: adminTicketInclude,
+    });
+
+    const reply = await tx.supportTicketMessage.create({
+      data: {
+        ticketId: id,
+        authorId: adminId,
+        authorName: adminName,
+        sender: SupportMessageSender.SUPPORT,
+        body: message,
+        isInternal,
+      },
+    });
+    if (!isInternal) {
+      const template = getEmailTemplate(EmailEventType.SUPPORT_TICKET_REPLY, {
+        audience: "CUSTOMER",
+        ticket: {
+          ...ticket,
+          message,
+          trackingUrl: ticketTrackingUrl(ticket.ticketNumber),
+        },
+      });
+      await queueRawEmail(
+        {
+          email: ticket.requesterEmail,
+          eventType: EmailEventType.SUPPORT_TICKET_REPLY,
+          subject: template.subject,
+          html: template.html,
+          text: template.text || "",
+          ticketId: id,
+          ...(ticket.userId ? { userId: ticket.userId } : {}),
+          replyTo: supportReplyAddress(id),
+          dedupeKey: "support-message:" + reply.id,
+        },
+        tx,
+      );
+    }
+    return tx.supportTicket.findUniqueOrThrow({
+      where: { id },
+      include: adminTicketInclude,
+    });
+  });
+}
+
+/** Optional direct email: does not post a ticket reply or change its status/SLA. */
+export async function sendSupportEmail(
+  id: string,
+  subject: string,
+  message: string,
+  requestId: string,
+  adminId: string,
+) {
+  const ticket = await getAdminSupportTicket(id);
+  if (
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ticket.requesterEmail) ||
+    ticket.requesterEmail.endsWith(".invalid")
+  ) {
+    throw new ValidationError(
+      "This customer does not have a deliverable email address.",
+    );
+  }
+  const template = getEmailTemplate(EmailEventType.CUSTOM_EMAIL, {
+    subject,
+    message:
+      message +
+      "\n\nTicket: " +
+      ticket.ticketNumber +
+      "\nView your request: " +
+      ticketTrackingUrl(ticket.ticketNumber),
+  });
+  return queueRawEmail({
+    email: ticket.requesterEmail,
+    eventType: EmailEventType.CUSTOM_EMAIL,
+    subject: template.subject,
+    html: template.html,
+    text: template.text || "",
+    ticketId: id,
+    ...(ticket.userId ? { userId: ticket.userId } : {}),
+    replyTo: supportReplyAddress(id),
+    metadata: { source: "SUPPORT_MANUAL_EMAIL", adminId },
+    dedupeKey: "support-email:" + id + ":" + adminId + ":" + requestId,
+  });
 }
 
 export async function listSupportAgents() {
   return prisma.user.findMany({
-    where: { role: { in: [UserRole.ADMIN, UserRole.SUPER_ADMIN] }, isActive: true },
+    where: {
+      role: { in: [UserRole.ADMIN, UserRole.SUPER_ADMIN] },
+      isActive: true,
+    },
     select: { id: true, name: true, email: true },
     orderBy: [{ name: "asc" }, { email: "asc" }],
   });
@@ -489,10 +719,12 @@ export async function getPublishedArticle(slug: string) {
     where: { slug, status: KnowledgeBaseStatus.PUBLISHED },
   });
   if (!article) throw new NotFoundError("Help article not found");
-  void prisma.knowledgeBaseArticle.update({
-    where: { id: article.id },
-    data: { viewCount: { increment: 1 } },
-  }).catch(() => undefined);
+  void prisma.knowledgeBaseArticle
+    .update({
+      where: { id: article.id },
+      data: { viewCount: { increment: 1 } },
+    })
+    .catch(() => undefined);
   return article;
 }
 
@@ -511,27 +743,41 @@ function slugify(value: string) {
     .slice(0, 180);
 }
 
-export async function createKnowledgeArticle(input: ArticleInput, adminId: string) {
+export async function createKnowledgeArticle(
+  input: ArticleInput,
+  adminId: string,
+) {
   const slug = slugify(input.slug || input.title);
-  if (!slug) throw new ValidationError("Enter a title that can be used as a URL");
+  if (!slug)
+    throw new ValidationError("Enter a title that can be used as a URL");
   return prisma.knowledgeBaseArticle.create({
     data: {
       ...input,
       slug,
       createdById: adminId,
       updatedById: adminId,
-      publishedAt: input.status === KnowledgeBaseStatus.PUBLISHED ? new Date() : null,
+      publishedAt:
+        input.status === KnowledgeBaseStatus.PUBLISHED ? new Date() : null,
     },
   });
 }
 
-export async function updateKnowledgeArticle(id: string, input: ArticleUpdateInput, adminId: string) {
-  const current = await prisma.knowledgeBaseArticle.findUnique({ where: { id } });
+export async function updateKnowledgeArticle(
+  id: string,
+  input: ArticleUpdateInput,
+  adminId: string,
+) {
+  const current = await prisma.knowledgeBaseArticle.findUnique({
+    where: { id },
+  });
   if (!current) throw new NotFoundError("Help article not found");
-  const slug = input.slug !== undefined || input.title !== undefined
-    ? slugify(input.slug || input.title || current.title)
-    : undefined;
-  const data: Prisma.KnowledgeBaseArticleUncheckedUpdateInput = { updatedById: adminId };
+  const slug =
+    input.slug !== undefined || input.title !== undefined
+      ? slugify(input.slug || input.title || current.title)
+      : undefined;
+  const data: Prisma.KnowledgeBaseArticleUncheckedUpdateInput = {
+    updatedById: adminId,
+  };
   if (input.title !== undefined) data.title = input.title;
   if (input.excerpt !== undefined) data.excerpt = input.excerpt;
   if (input.content !== undefined) data.content = input.content;
@@ -540,7 +786,8 @@ export async function updateKnowledgeArticle(id: string, input: ArticleUpdateInp
   if (input.isFeatured !== undefined) data.isFeatured = input.isFeatured;
   if (input.sortOrder !== undefined) data.sortOrder = input.sortOrder;
   if (slug) data.slug = slug;
-  if (input.status === KnowledgeBaseStatus.PUBLISHED && !current.publishedAt) data.publishedAt = new Date();
+  if (input.status === KnowledgeBaseStatus.PUBLISHED && !current.publishedAt)
+    data.publishedAt = new Date();
   if (input.status === KnowledgeBaseStatus.DRAFT) data.publishedAt = null;
 
   return prisma.knowledgeBaseArticle.update({
@@ -550,7 +797,10 @@ export async function updateKnowledgeArticle(id: string, input: ArticleUpdateInp
 }
 
 export async function deleteKnowledgeArticle(id: string) {
-  const article = await prisma.knowledgeBaseArticle.findUnique({ where: { id }, select: { id: true } });
+  const article = await prisma.knowledgeBaseArticle.findUnique({
+    where: { id },
+    select: { id: true },
+  });
   if (!article) throw new NotFoundError("Help article not found");
   await prisma.knowledgeBaseArticle.delete({ where: { id } });
 }

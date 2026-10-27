@@ -34,6 +34,9 @@ export async function createOrderHandler(req: Request, res: Response) {
     const userId = userIdFromRequest(req);
     validateLegalAcceptance(req.body.legalConsent);
     const paymentGateway = req.body.paymentGateway || PaymentGateway.ZOHO;
+    if (![PaymentGateway.ZOHO, PaymentGateway.RAZORPAY].includes(paymentGateway)) {
+      res.status(400).json({ success: false, error: "Choose a supported payment provider." }); return;
+    }
     const payload = await createOrder({
       userId,
       items: Array.isArray(req.body.items) ? req.body.items : [],

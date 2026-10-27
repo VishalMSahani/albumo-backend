@@ -1,3 +1,4 @@
+import { printReport } from '../../studio/print-quality.js';
 import { prisma } from "../../../lib/prisma.js";
 import { sellingPrice } from "../../../utils/product-price.js";
 import {
@@ -357,6 +358,7 @@ export async function getAllOrders() {
       items: {
         include: {
           component: true,
+          studioAlbum: { select: { projectId: true, revision: true, createdAt: true } },
         },
       },
       payments: true,
@@ -388,6 +390,19 @@ export async function updateAdminOrderStatus(orderId: string, status: OrderStatu
 
     if (order.status === OrderStatus.DELIVERED) {
       throw new Error("Delivered orders cannot be changed");
+    }
+
+    // Physical fulfilment must use the approved frozen order design, not a later draft.
+    if (['PENDING_PAYMENT', 'PAID', 'PROCESSING', 'PACKED'].includes(order.status) &&
+        ['PROCESSING', 'PACKED', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(status)) {
+      const albums = await tx.studioOrderLink.findMany({ where: { orderItem: { orderId } } });
+      for (const album of albums) {
+        const saved = album.snapshot as { document?: unknown; configuration?: unknown };
+        const quality = await printReport(tx, album.projectId, saved.document, saved.configuration);
+        const approval = album.printApproval as { reportHash?: string } | null;
+        if (!quality.profile || !quality.canApprove || approval?.reportHash !== quality.reportHash)
+          throw new Error('Approve the saved album for print in Studio administration before fulfilment.');
+      }
     }
 
     // Stock is deducted at order creation — all statuses except CANCELLED/RETURNED/REFUNDED have stock held
@@ -477,6 +492,7 @@ export async function updateAdminOrderStatus(orderId: string, status: OrderStatu
       data: {
         status,
         notes: nextNotes || null,
+        ...(status === OrderStatus.DELIVERED ? { deliveredAt: order.deliveredAt || new Date() } : {}),
       },
       include: {
         user: {
@@ -536,102 +552,8 @@ export async function updateAdminOrderStatus(orderId: string, status: OrderStatu
   });
 }
 
-export async function confirmUserOrderPayment(userId: string, orderId: string) {
-  // Pre-check ownership outside transaction for clear 404 vs 403 errors
-  const ownerCheck = await prisma.order.findUnique({
-    where: { id: orderId },
-    select: { userId: true, status: true },
-  });
-
-  if (!ownerCheck) {
-    const err = new Error("Order not found") as Error & { statusCode: number };
-    err.statusCode = 404;
-    throw err;
-  }
-
-  if (ownerCheck.userId !== userId) {
-    const err = new Error("Forbidden: you do not own this order") as Error & { statusCode: number };
-    err.statusCode = 403;
-    throw err;
-  }
-
-  return prisma.$transaction(async (tx) => {
-    const order = await tx.order.findUnique({
-      where: { id: orderId },
-      include: {
-        address: true,
-        items: {
-          include: {
-            component: true,
-          },
-        },
-        payments: true,
-      },
-    });
-
-    if (!order) {
-      throw new Error("Order not found");
-    }
-
-    if (order.status === OrderStatus.CANCELLED) {
-      throw new Error("Cancelled orders cannot be paid");
-    }
-
-    if (order.status !== OrderStatus.PENDING_PAYMENT) {
-      throw new Error("This order is already paid or processing");
-    }
-
-    // Stock was already reserved/deducted at order creation — just update payment + order status
-    await tx.payment.updateMany({
-      where: { orderId },
-      data: {
-        status: PaymentStatus.SUCCESS,
-        gatewayTransactionId: `manual_${Date.now()}`,
-      },
-    });
-
-    return tx.order.update({
-      where: { id: orderId },
-      data: {
-        status: OrderStatus.PAID,
-        notes: [order.notes, "Customer confirmed payment from checkout payment page"].filter(Boolean).join("\n"),
-      },
-      include: {
-        address: true,
-        items: {
-          include: {
-            component: true,
-          },
-        },
-        payments: true,
-      },
-    });
-  }).then(async (paidOrder) => {
-    // Queue payment confirmation email after the transaction commits
-    try {
-      const user = await prisma.user.findUnique({
-        where: { id: paidOrder.userId },
-        select: { email: true, name: true },
-      });
-      if (user) {
-        await queueEmailNotification(
-          user.email,
-          EmailEventType.ORDER_PAID,
-          {
-            order: {
-              orderId: paidOrder.id,
-              total: paidOrder.totalAmountCents / 100,
-            },
-            user: { name: user.name || user.email },
-          },
-          paidOrder.userId
-        );
-      }
-    } catch {
-      // Never fail the payment confirm because of email failure
-    }
-    return paidOrder;
-  });
+export async function confirmUserOrderPayment(_userId: string, _orderId: string): Promise<never> {
+  throw Object.assign(new Error("Payment is confirmed only by the payment provider. Refresh your order to check its status."), { statusCode: 409 });
 }
 
 export async function getUserOrderById(userId: string, orderId: string) {
@@ -654,6 +576,7 @@ export async function getUserOrderById(userId: string, orderId: string) {
 
 export async function cancelUserOrder(userId: string, orderId: string) {
   return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "Order" WHERE "id" = ${orderId} AND "userId" = ${userId} FOR UPDATE`;
     const order = await tx.order.findFirst({
       where: {
         id: orderId,
@@ -666,6 +589,10 @@ export async function cancelUserOrder(userId: string, orderId: string) {
 
     if (!order) {
       throw new Error("Order not found");
+    }
+
+    if (order.status !== OrderStatus.PENDING_PAYMENT && await tx.checkoutAttempt.findUnique({ where: { orderId }, select: { id: true } })) {
+      throw new Error("Contact Albumo to cancel a paid album order and arrange its refund.");
     }
 
     const cancellableStatuses: OrderStatus[] = [

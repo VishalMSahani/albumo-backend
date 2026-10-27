@@ -7,10 +7,10 @@ export function userSignupTemplate(data: {
   };
 }): EmailTemplate {
   const content = `
-    <h1>Welcome to RoboRoot! 🎉</h1>
+    <h1>Welcome to Albumo! 🎉</h1>
     <p>Hi ${data.user.name || "there"},</p>
     <p>
-      We're excited to have you on board! RoboRoot is your gateway to mastering hardware projects
+      We're excited to have you on board! Albumo is your gateway to mastering hardware projects
       and bringing your innovative ideas to life.
     </p>
     
@@ -25,29 +25,29 @@ export function userSignupTemplate(data: {
     </div>
 
     <p class="text-center">
-      <a href="https://roboroot.in/dashboard" class="button">Go to Dashboard</a>
+      <a href="https://albumo.in/dashboard" class="button">Go to Dashboard</a>
     </p>
 
     <p>
       Need help getting started? Check out our 
-      <a href="https://roboroot.in/getting-started">Getting Started Guide</a> 
+      <a href="https://albumo.in/getting-started">Getting Started Guide</a>
       or reach out to our support team.
     </p>
 
     <p>
       Happy Building! 🔧⚡<br>
-      The RoboRoot Team
+      The Albumo Team
     </p>
   `;
 
   return {
-    subject: "Welcome to RoboRoot - Let's Start Building! 🚀",
+    subject: "Welcome to Albumo - Let's Start Building! 🚀",
     html: wrapTemplate(content),
-    text: `Welcome to RoboRoot! 🎉
+    text: `Welcome to Albumo! 🎉
 
 Hi ${data.user.name || "there"},
 
-We're excited to have you on board! RoboRoot is your gateway to mastering hardware projects and bringing your innovative ideas to life.
+We're excited to have you on board! Albumo is your gateway to mastering hardware projects and bringing your innovative ideas to life.
 
 What's Next?
 • Explore Projects: Browse our extensive library of hardware projects
@@ -55,11 +55,11 @@ What's Next?
 • Shop Components: Find all the parts you need in our component store
 • Get Mentorship: Book sessions with experienced mentors
 
-Go to Dashboard: https://roboroot.in/dashboard
+Go to Dashboard: https://albumo.in/dashboard
 
-Need help getting started? Check out our Getting Started Guide at https://roboroot.in/getting-started
+Need help getting started? Check out our Getting Started Guide at https://albumo.in/getting-started
 
 Happy Building! 🔧⚡
-The RoboRoot Team`,
+The Albumo Team`,
   };
 }

@@ -3,10 +3,18 @@
  * Business logic for component management
  */
 
+import {
+  resolveCatalogueAssignment,
+  publishedProductWhere,
+} from "./catalogue.service.js";
 import { prisma } from "../../../lib/prisma.js";
 import { NotFoundError, ConflictError, ValidationError } from "../../../utils/types.js";
 import { productPricingSchema } from "../validators/product-pricing.js";
-import { productDetailsSchema, productSpecificationsSchema, parseProductDetails } from "../validators/product-details.js";
+import {
+  productDetailsSchema,
+  productSpecificationsSchema,
+  parseProductDetails,
+} from "../validators/product-details.js";
 import type {
   CreateComponentRequest,
   UpdateComponentRequest,
@@ -31,7 +39,10 @@ function generateSlug(name: string): string {
 /**
  * Generate a unique slug, appending -2, -3, etc. on collision
  */
-export async function generateUniqueSlug(name: string, excludeId?: string): Promise<string> {
+export async function generateUniqueSlug(
+  name: string,
+  excludeId?: string,
+): Promise<string> {
   const baseSlug = generateSlug(name);
   let slug = baseSlug;
   let attempt = 1;
@@ -57,11 +68,14 @@ export async function generateUniqueSlug(name: string, excludeId?: string): Prom
 function formatComponent(component: any): ComponentResponse {
   return {
     id: component.id,
+    subcategoryId: component.subcategoryId ?? null,
+    configuration: component.configuration ?? null,
     slug: component.slug,
     name: component.name,
     sku: component.sku,
     description: component.description,
-    specifications: productSpecificationsSchema.safeParse(component.specifications).data ?? [],
+    specifications:
+      productSpecificationsSchema.safeParse(component.specifications).data ?? [],
     countryOfOrigin: component.countryOfOrigin ?? null,
     warranty: component.warranty ?? null,
     typicalUseCase: component.typicalUseCase,
@@ -88,11 +102,21 @@ function formatComponent(component: any): ComponentResponse {
 /**
  * Create a new component (Admin only)
  */
-export async function createComponent(data: CreateComponentRequest): Promise<ComponentResponse> {
+export async function createComponent(
+  data: CreateComponentRequest,
+): Promise<ComponentResponse> {
   const pricing = productPricingSchema.safeParse(data);
-  if (!pricing.success) throw new ValidationError(pricing.error.issues.map(issue => issue.message).join('; '));
+  if (!pricing.success)
+    throw new ValidationError(
+      pricing.error.issues.map((issue) => issue.message).join("; "),
+    );
   const details = productDetailsSchema.safeParse(data);
-  if (!details.success) throw new ValidationError(details.error.issues.map(issue => issue.path.join('.') + ': ' + issue.message).join('; '));
+  if (!details.success)
+    throw new ValidationError(
+      details.error.issues
+        .map((issue) => issue.path.join(".") + ": " + issue.message)
+        .join("; "),
+    );
   // Check if SKU already exists
   if (data.sku) {
     const existing = await prisma.component.findUnique({
@@ -105,8 +129,11 @@ export async function createComponent(data: CreateComponentRequest): Promise<Com
   }
 
   // Auto-generate or sanitize a unique slug
-  const slug = data.slug ? await generateUniqueSlug(data.slug) : await generateUniqueSlug(data.name);
+  const slug = data.slug
+    ? await generateUniqueSlug(data.slug)
+    : await generateUniqueSlug(data.name);
 
+  const assignment = await resolveCatalogueAssignment(data);
   const component = await prisma.component.create({
     data: {
       name: data.name,
@@ -117,8 +144,7 @@ export async function createComponent(data: CreateComponentRequest): Promise<Com
       typicalUseCase: data.typicalUseCase || null,
       vendorLink: data.vendorLink || null,
       imageUrl: data.imageUrl || null,
-      category: data.category || "Electronics Components",
-      subcategory: data.subcategory || "General",
+      ...assignment,
       productType: data.productType || "ELECTRONICS_COMPONENT",
       brand: data.brand || null,
       tags: data.tags || [],
@@ -139,7 +165,8 @@ export async function createComponent(data: CreateComponentRequest): Promise<Com
  * Get all components with filters and pagination
  */
 export async function getComponents(
-  filters: ComponentFilters
+  filters: ComponentFilters,
+  management = false,
 ): Promise<PaginatedComponentsResponse> {
   const {
     search,
@@ -160,7 +187,9 @@ export async function getComponents(
   } = filters;
 
   // Build where clause
-  const where: any = {};
+  const where: any = management
+    ? {}
+    : { catalogueCategory: { is: { isActive: true, category: { isActive: true } } } };
 
   if (search) {
     where.OR = [
@@ -175,7 +204,7 @@ export async function getComponents(
   }
 
   if (isActive !== undefined) {
-    where.isActive = isActive;
+    where.isActive = management ? isActive : true;
   } else {
     where.isActive = true;
   }
@@ -254,9 +283,12 @@ export async function getComponents(
 /**
  * Get a single component by ID
  */
-export async function getComponentById(id: string): Promise<ComponentResponse> {
+export async function getComponentById(
+  id: string,
+  management = false,
+): Promise<ComponentResponse> {
   const component = await prisma.component.findUnique({
-    where: { id },
+    where: { id, ...(management ? {} : publishedProductWhere) },
     include: { media: true },
   });
 
@@ -272,7 +304,7 @@ export async function getComponentById(id: string): Promise<ComponentResponse> {
  */
 export async function getComponentBySlug(slug: string): Promise<ComponentResponse> {
   const component = await prisma.component.findUnique({
-    where: { slug },
+    where: { slug, ...publishedProductWhere },
     include: { media: true },
   });
 
@@ -317,7 +349,7 @@ export async function getComponentCategoryTree(): Promise<ComponentCategoryNode[
 
   // Get all active components
   const components = await prisma.component.findMany({
-    where: { isActive: true },
+    where: publishedProductWhere,
   });
 
   const categoryTree: ComponentCategoryNode[] = [];
@@ -329,7 +361,7 @@ export async function getComponentCategoryTree(): Promise<ComponentCategoryNode[
         .filter(
           (c) =>
             c.category.toLowerCase() === dbCat.name.toLowerCase() &&
-            c.subcategory.toLowerCase() === sub.name.toLowerCase()
+            c.subcategory.toLowerCase() === sub.name.toLowerCase(),
         )
         .map(formatComponent);
 
@@ -360,7 +392,7 @@ export async function getComponentCategoryTree(): Promise<ComponentCategoryNode[
 
     // Check if category is already in our tree
     let catNode = categoryTree.find(
-      (n) => n.category.toLowerCase() === categoryName.toLowerCase()
+      (n) => n.category.toLowerCase() === categoryName.toLowerCase(),
     );
     if (!catNode) {
       catNode = {
@@ -374,7 +406,7 @@ export async function getComponentCategoryTree(): Promise<ComponentCategoryNode[
     }
 
     let subNode = catNode.subcategories.find(
-      (s) => s.name.toLowerCase() === subcategoryName.toLowerCase()
+      (s) => s.name.toLowerCase() === subcategoryName.toLowerCase(),
     );
     if (!subNode) {
       subNode = {
@@ -410,7 +442,9 @@ export async function getComponentCategoryTree(): Promise<ComponentCategoryNode[
  * Keeps only three image candidates per subcategory instead of serializing
  * every product and every product field in the catalog.
  */
-export async function getComponentCategorySummary(): Promise<ComponentCategorySummaryNode[]> {
+export async function getComponentCategorySummary(): Promise<
+  ComponentCategorySummaryNode[]
+> {
   const [dbCategories, components] = await Promise.all([
     prisma.category.findMany({
       where: { isActive: true },
@@ -427,7 +461,7 @@ export async function getComponentCategorySummary(): Promise<ComponentCategorySu
       orderBy: { name: "asc" },
     }),
     prisma.component.findMany({
-      where: { isActive: true },
+      where: publishedProductWhere,
       select: {
         id: true,
         name: true,
@@ -503,10 +537,15 @@ export async function getComponentCategorySummary(): Promise<ComponentCategorySu
  */
 export async function updateComponent(
   id: string,
-  data: UpdateComponentRequest
+  data: UpdateComponentRequest,
 ): Promise<ComponentResponse> {
   const details = productDetailsSchema.safeParse(data);
-  if (!details.success) throw new ValidationError(details.error.issues.map(issue => issue.path.join('.') + ': ' + issue.message).join('; '));
+  if (!details.success)
+    throw new ValidationError(
+      details.error.issues
+        .map((issue) => issue.path.join(".") + ": " + issue.message)
+        .join("; "),
+    );
   // Check if component exists
   const existing = await prisma.component.findUnique({
     where: { id },
@@ -518,7 +557,10 @@ export async function updateComponent(
 
   // Check if new SKU already exists
   const pricing = productPricingSchema.safeParse({ ...existing, ...data });
-  if (!pricing.success) throw new ValidationError(pricing.error.issues.map(issue => issue.message).join('; '));
+  if (!pricing.success)
+    throw new ValidationError(
+      pricing.error.issues.map((issue) => issue.message).join("; "),
+    );
 
   if (data.sku && data.sku !== existing.sku) {
     const skuExists = await prisma.component.findUnique({
@@ -531,7 +573,17 @@ export async function updateComponent(
   }
 
   // If name changed AND no explicit slug override provided, regenerate slug
-  const updateData = { ...data, ...parseProductDetails(data) };
+  const needsAssignment =
+    data.subcategoryId !== undefined ||
+    data.category !== undefined ||
+    data.subcategory !== undefined ||
+    data.configuration !== undefined ||
+    data.imageUrl !== undefined ||
+    data.isActive === true;
+  const assignment = needsAssignment
+    ? await resolveCatalogueAssignment(data, existing)
+    : {};
+  const updateData = { ...data, ...parseProductDetails(data), ...assignment };
   if (data.name && data.name !== existing.name && !data.slug) {
     updateData.slug = await generateUniqueSlug(data.name, id);
   } else if (data.slug) {
@@ -581,41 +633,44 @@ export async function deleteComponent(id: string): Promise<{ message: string }> 
 export async function updateComponentStock(
   id: string,
   quantity: number,
-  operation: "add" | "subtract" | "set" = "set"
+  operation: "add" | "subtract" | "set" = "set",
+  expectedStock?: number,
 ): Promise<ComponentResponse> {
-  const existing = await prisma.component.findUnique({
-    where: { id },
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.component.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundError("Component not found");
+    if (expectedStock !== undefined && expectedStock !== existing.stockQuantity) {
+      throw new ConflictError(
+        "Stock changed since you opened this product. Refresh and try again.",
+      );
+    }
+    const newStock =
+      operation === "set"
+        ? quantity
+        : existing.stockQuantity + (operation === "add" ? quantity : -quantity);
+    if (!Number.isInteger(newStock) || newStock < 0 || newStock > 2147483647) {
+      throw new ValidationError(
+        "Stock must remain a nonnegative whole number within the supported range",
+      );
+    }
+    const changed = await tx.component.updateMany({
+      where: { id, stockQuantity: existing.stockQuantity },
+      data: { stockQuantity: newStock },
+    });
+    if (!changed.count)
+      throw new ConflictError(
+        "Stock changed during this adjustment. Refresh and try again.",
+      );
+    return formatComponent({ ...existing, stockQuantity: newStock });
   });
-
-  if (!existing) {
-    throw new NotFoundError("Component not found");
-  }
-
-  let newStock = existing.stockQuantity;
-
-  if (operation === "set") {
-    newStock = quantity;
-  } else if (operation === "add") {
-    newStock += quantity;
-  } else if (operation === "subtract") {
-    newStock -= quantity;
-    if (newStock < 0) newStock = 0;
-  }
-
-  const component = await prisma.component.update({
-    where: { id },
-    data: { stockQuantity: newStock },
-  });
-
-  console.log(`📦 Stock updated for ${component.name}: ${newStock} units`);
-
-  return formatComponent(component);
 }
 
 /**
  * Get low stock components (stock below threshold)
  */
-export async function getLowStockComponents(threshold: number = 10): Promise<ComponentResponse[]> {
+export async function getLowStockComponents(
+  threshold: number = 10,
+): Promise<ComponentResponse[]> {
   const components = await prisma.component.findMany({
     where: {
       isActive: true,

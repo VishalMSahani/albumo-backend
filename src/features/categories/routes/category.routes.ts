@@ -5,6 +5,12 @@ import * as categoryController from "../controllers/category.controller.js";
 const router: Router = Router();
 
 // Public route to fetch all categories
+router.get(
+  "/manage",
+  authenticate,
+  authorize("ADMIN", "SUPER_ADMIN"),
+  categoryController.getAllCategoriesHandler,
+);
 router.get("/", categoryController.getAllCategoriesHandler);
 
 // Admin only routes

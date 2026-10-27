@@ -30,7 +30,7 @@ export function orderShippedTemplate(data: {
       ${
         data.order.trackingUrl
           ? `<a href="${data.order.trackingUrl}" class="button">Track Your Package</a>`
-          : `<a href="https://roboroot.in/orders/${data.order.orderId}" class="button">View Order Details</a>`
+          : `<a href="https://albumo.in/orders/${data.order.orderId}" class="button">View Order Details</a>`
       }
     </p>
 
@@ -54,12 +54,12 @@ export function orderShippedTemplate(data: {
 
     <p>
       Questions about your delivery? Contact us at 
-      <a href="mailto:orders@roboroot.in">orders@roboroot.in</a>
+      <a href="mailto:alert@albumo.in">alert@albumo.in</a>
     </p>
 
     <p>
       Happy Building! 🔧⚡<br>
-      The RoboRoot Team
+      The Albumo Team
     </p>
   `;
 
@@ -84,9 +84,9 @@ What's Next?
 📅 Make sure someone is available to receive the package
 📧 We'll notify you when your package is delivered
 
-Questions about your delivery? Contact us at orders@roboroot.in
+Questions about your delivery? Contact us at alert@albumo.in
 
 Happy Building! 🔧⚡
-The RoboRoot Team`,
+The Albumo Team`,
   };
 }

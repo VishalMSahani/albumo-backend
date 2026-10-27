@@ -24,7 +24,10 @@ function escapeHtml(value: string) {
 }
 
 function label(value: string) {
-  return value.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
+  return value
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 export function supportTicketTemplate(
@@ -37,7 +40,9 @@ export function supportTicketTemplate(
   const requester = escapeHtml(ticket.requesterName);
   const status = escapeHtml(label(ticket.status));
   const priority = escapeHtml(label(ticket.priority));
-  const message = ticket.message ? escapeHtml(ticket.message).replace(/\n/g, "<br>") : "";
+  const message = ticket.message
+    ? escapeHtml(ticket.message).replace(/\n/g, "<br>")
+    : "";
   const isSupport = data.audience === "SUPPORT";
 
   const heading = isSupport
@@ -45,7 +50,7 @@ export function supportTicketTemplate(
     : kind === "CREATED"
       ? "We received your request"
       : kind === "REPLY"
-        ? "RoboRoot Support replied"
+        ? "Albumo Support replied"
         : "Your ticket was updated";
 
   const intro = isSupport

@@ -49,7 +49,7 @@ export function assertAddressInput(input: AddressInput) {
 
 export async function listUserAddresses(userId: string) {
   return prisma.address.findMany({
-    where: { userId },
+    where: { userId, orders: { none: { checkoutAttempt: { isNot: null } } } },
     orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }],
   });
 }
@@ -92,6 +92,10 @@ export async function updateUserAddress(userId: string, addressId: string, input
 
     if (!existingAddress) {
       throw new Error("Address not found");
+    }
+
+    if (await tx.order.count({ where: { addressId, checkoutAttempt: { isNot: null } } })) {
+      throw new Error("This address is saved with an order. Add a new address for future deliveries.");
     }
 
     if (data.isDefault) {

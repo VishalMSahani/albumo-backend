@@ -25,7 +25,7 @@ export function orderCreatedTemplate(data: {
       <td class="text-center">₹${item.price.toLocaleString()}</td>
       <td class="text-center"><strong>₹${(item.quantity * item.price).toLocaleString()}</strong></td>
     </tr>
-  `
+  `,
     )
     .join("");
 
@@ -74,7 +74,7 @@ export function orderCreatedTemplate(data: {
     }
 
     <p class="text-center">
-      <a href="https://roboroot.in/orders/${data.order.orderId}" class="button">Track Your Order</a>
+      <a href="https://albumo.in/orders/${data.order.orderId}" class="button">Track Your Order</a>
     </p>
 
     <p>
@@ -83,12 +83,12 @@ export function orderCreatedTemplate(data: {
 
     <p>
       Questions about your order? Contact us at 
-      <a href="mailto:orders@roboroot.in">orders@roboroot.in</a>
+      <a href="mailto:alert@albumo.in">alert@albumo.in</a>
     </p>
 
     <p>
-      Thank you for shopping with RoboRoot! 🚀<br>
-      The RoboRoot Team
+      Thank you for shopping with Albumo! 🚀<br>
+      The Albumo Team
     </p>
   `;
 
@@ -111,13 +111,13 @@ Total Amount: ₹${data.order.total.toLocaleString()}
 
 ${data.order.shippingAddress ? `Shipping Address:\n${data.order.shippingAddress}` : ""}
 
-Track your order: https://roboroot.in/orders/${data.order.orderId}
+Track your order: https://albumo.in/orders/${data.order.orderId}
 
 You'll receive another email once your order has been shipped with tracking information.
 
-Questions? Contact us at orders@roboroot.in
+Questions? Contact us at alert@albumo.in
 
-Thank you for shopping with RoboRoot! 🚀
-The RoboRoot Team`,
+Thank you for shopping with Albumo! 🚀
+The Albumo Team`,
   };
 }

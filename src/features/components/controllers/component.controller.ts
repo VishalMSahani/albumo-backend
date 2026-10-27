@@ -15,7 +15,10 @@ import { cacheInvalidate } from "../../../lib/redis.js";
 import { logAdminAction } from "../../../services/admin-action-log.service.js";
 
 async function bustComponentCache() {
-  await Promise.all([cacheInvalidate("http:/api/components*"), cacheInvalidate("http:/api/projects*")]);
+  await Promise.all([
+    cacheInvalidate("http:/api/components*"),
+    cacheInvalidate("http:/api/projects*"),
+  ]);
 }
 
 /**
@@ -26,7 +29,7 @@ async function bustComponentCache() {
 export async function createComponentHandler(
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> {
   try {
     const validation = validateCreateComponent(req.body);
@@ -56,7 +59,7 @@ export async function createComponentHandler(
 export async function getComponentsHandler(
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> {
   try {
     const validation = validateComponentFilters(req.query);
@@ -65,7 +68,10 @@ export async function getComponentsHandler(
       throw new ValidationError(validation.error || "Validation failed");
     }
 
-    const result = await componentService.getComponents(validation.data);
+    const result = await componentService.getComponents(
+      validation.data,
+      req.user?.role === "ADMIN" || req.user?.role === "SUPER_ADMIN",
+    );
 
     res.status(200).json({
       success: true,
@@ -85,7 +91,7 @@ export async function getComponentsHandler(
 export async function getCategoryTreeHandler(
   _req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> {
   try {
     const categories = await componentService.getComponentCategoryTree();
@@ -106,7 +112,7 @@ export async function getCategoryTreeHandler(
 export async function getCategorySummaryHandler(
   _req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> {
   try {
     const categories = await componentService.getComponentCategorySummary();
@@ -124,7 +130,7 @@ export async function getCategorySummaryHandler(
 export async function getComponentByIdHandler(
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> {
   try {
     const { id } = req.params;
@@ -133,7 +139,10 @@ export async function getComponentByIdHandler(
       throw new ValidationError("Component ID is required");
     }
 
-    const component = await componentService.getComponentById(id);
+    const component = await componentService.getComponentById(
+      id,
+      req.user?.role === "ADMIN" || req.user?.role === "SUPER_ADMIN",
+    );
 
     res.status(200).json({
       success: true,
@@ -152,7 +161,7 @@ export async function getComponentByIdHandler(
 export async function getComponentBySlugHandler(
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> {
   try {
     const { slug } = req.params;
@@ -180,7 +189,7 @@ export async function getComponentBySlugHandler(
 export async function updateComponentHandler(
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> {
   try {
     const { id } = req.params;
@@ -216,7 +225,7 @@ export async function updateComponentHandler(
 export async function deleteComponentHandler(
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> {
   try {
     const { id } = req.params;
@@ -246,7 +255,7 @@ export async function deleteComponentHandler(
 export async function updateStockHandler(
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> {
   try {
     const { id } = req.params;
@@ -255,7 +264,7 @@ export async function updateStockHandler(
       throw new ValidationError("Component ID is required");
     }
 
-    const { quantity, operation } = req.body;
+    const { quantity, operation, expectedStock } = req.body;
 
     if (typeof quantity !== "number" || quantity < 0) {
       throw new ValidationError("Quantity must be a non-negative number");
@@ -268,8 +277,11 @@ export async function updateStockHandler(
     const component = await componentService.updateComponentStock(
       id,
       quantity,
-      operation || "set"
+      operation || "set",
+      expectedStock,
     );
+
+    await cacheInvalidate("http:/api/components*");
 
     res.status(200).json({
       success: true,
@@ -288,7 +300,7 @@ export async function updateStockHandler(
 export async function getLowStockHandler(
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> {
   try {
     const threshold = req.query.threshold ? Number(req.query.threshold) : 10;
@@ -313,7 +325,7 @@ export async function getLowStockHandler(
 export async function getOutOfStockHandler(
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> {
   try {
     const components = await componentService.getOutOfStockComponents();

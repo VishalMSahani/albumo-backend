@@ -1,0 +1,1 @@
+ALTER TABLE "EmailCampaign" ADD COLUMN "design" JSONB NOT NULL DEFAULT '{}';

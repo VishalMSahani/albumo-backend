@@ -24,8 +24,8 @@ router.use(authenticate);
  */
 router.get(
   "/preview/:eventType",
-  authorize(UserRole.ADMIN),
-  previewEmailTemplate
+  authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  previewEmailTemplate,
 );
 
 /**
@@ -35,8 +35,8 @@ router.get(
  */
 router.post(
   "/test",
-  authorize(UserRole.ADMIN),
-  sendTestEmail
+  authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  sendTestEmail,
 );
 
 /**
@@ -46,8 +46,8 @@ router.post(
  */
 router.post(
   "/custom",
-  authorize(UserRole.ADMIN),
-  sendCustomEmail
+  authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  sendCustomEmail,
 );
 
 /**
@@ -57,8 +57,8 @@ router.post(
  */
 router.post(
   "/process",
-  authorize(UserRole.ADMIN),
-  processEmailQueue
+  authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  processEmailQueue,
 );
 
 /**
@@ -68,8 +68,8 @@ router.post(
  */
 router.get(
   "/stats",
-  authorize(UserRole.ADMIN),
-  getEmailStatistics
+  authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  getEmailStatistics,
 );
 
 /**
@@ -80,8 +80,8 @@ router.get(
  */
 router.delete(
   "/cleanup",
-  authorize(UserRole.ADMIN),
-  cleanupEmails
+  authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  cleanupEmails,
 );
 
 /**
@@ -91,8 +91,8 @@ router.delete(
  */
 router.get(
   "/test-config",
-  authorize(UserRole.ADMIN),
-  testEmailConfig
+  authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  testEmailConfig,
 );
 
 export default router;

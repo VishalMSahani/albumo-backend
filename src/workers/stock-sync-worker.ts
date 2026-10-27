@@ -1,7 +1,7 @@
+import { queuePrefix } from "../lib/queue-config.js";
 import { Worker, type Job } from "bullmq";
 import { createBullMQConnection } from "../lib/redis.js";
 import { prisma } from "../lib/prisma.js";
-import { queueEmailNotification } from "../services/email-notification.service.js";
 import type { StockSyncJobData } from "../lib/queue.js";
 
 const LOW_STOCK_THRESHOLD = 5;
@@ -26,32 +26,16 @@ async function processStockSyncJob(job: Job<StockSyncJobData>): Promise<void> {
 
   if (lowStock.length === 0) return;
 
-  console.log(`[StockWorker] ${lowStock.length} low-stock component(s) detected`);
-
-  // Queue admin alert email for each low-stock item
-  const adminEmail = process.env.ADMIN_ALERT_EMAIL;
-  if (adminEmail) {
-    for (const component of lowStock) {
-      await queueEmailNotification(
-        adminEmail,
-        "LOW_STOCK_ALERT",
-        {
-          component: {
-            id: component.id,
-            name: component.name,
-            sku: component.sku ?? undefined,
-            stockQuantity: component.stockQuantity,
-            threshold: LOW_STOCK_THRESHOLD,
-          },
-        },
-      ).catch(() => null);
-    }
-  }
+  console.log(
+    `[StockWorker] ${lowStock.length} low-stock component(s) detected`,
+  );
 }
 
 export function startStockSyncWorker(): Worker<StockSyncJobData> | null {
   if (!process.env.REDIS_URL) {
-    console.warn("[StockWorker] REDIS_URL not set — stock sync worker disabled");
+    console.warn(
+      "[StockWorker] REDIS_URL not set — stock sync worker disabled",
+    );
     return null;
   }
 
@@ -59,6 +43,7 @@ export function startStockSyncWorker(): Worker<StockSyncJobData> | null {
 
   worker = new Worker<StockSyncJobData>("stock-sync", processStockSyncJob, {
     connection: createBullMQConnection(),
+    prefix: queuePrefix,
     concurrency: 2,
   });
 

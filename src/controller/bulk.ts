@@ -1,71 +1,167 @@
 import type { Request, Response } from "express";
 import { prisma } from "../lib/prisma.js";
-import { uploadFileToAzure, FileType } from "../services/azure-storage.service.js";
-import { createComponent, updateComponent } from "../features/components/services/component.service.js";
+import { uploadFile, FileType } from "../services/storage.service.js";
+import {
+  createComponent,
+  updateComponent,
+} from "../features/components/services/component.service.js";
+import { prepareProductImportRow } from "../features/components/services/product-import.service.js";
 import { cacheInvalidate } from "../lib/redis.js";
-import { csvCell, parseProductCsv, productCsvHeaders, productTemplateCsv } from "../features/components/validators/product-csv.js";
+import {
+  parseProductCsv,
+  productsToCsv,
+  productTemplateCsv,
+} from "../features/components/validators/product-csv.js";
 
-export async function bulkImportController(req: Request, res: Response): Promise<void> {
+export async function bulkImportController(
+  req: Request,
+  res: Response,
+): Promise<void> {
   let rows: ReturnType<typeof parseProductCsv>;
   try {
-    const text = req.file?.buffer?.toString("utf-8") || (typeof req.body === "string" ? req.body : typeof req.body?.csv === "string" ? req.body.csv : "");
-    if (text.length > 5 * 1024 * 1024) throw new Error("CSV must be 5 MB or smaller");
+    const text =
+      req.file?.buffer?.toString("utf-8") ||
+      (typeof req.body === "string"
+        ? req.body
+        : typeof req.body?.csv === "string"
+          ? req.body.csv
+          : "");
+    if (Buffer.byteLength(text, "utf8") > 5 * 1024 * 1024)
+      throw new Error("CSV must be 5 MB or smaller");
     rows = parseProductCsv(text);
   } catch (error) {
-    res.status(400).json({ success: false, error: error instanceof Error ? error.message : "Invalid CSV" });
+    res.status(400).json({
+      success: false,
+      error: error instanceof Error ? error.message : "Invalid CSV",
+    });
     return;
   }
-
-  let createdCount = 0, updatedCount = 0;
+  const dryRun = req.query.dryRun === "true";
+  let createdCount = 0,
+    updatedCount = 0;
   const errors: { row: number; name: string; error: string }[] = [];
-  // All rows are syntactically validated first. Each result is reported; retries match stable SKU/ID.
+  const previews: {
+    row: number;
+    action: string;
+    category: string;
+    optionGroups: number;
+    isActive: boolean;
+  }[] = [];
+  const targets = new Set<string>();
   for (const row of rows) {
     try {
-      const byId = row.id ? await prisma.component.findUnique({ where: { id: row.id } }) : null;
-      const bySku = row.data.sku ? await prisma.component.findUnique({ where: { sku: row.data.sku } }) : null;
-      if (row.id && !byId) throw new Error("Product ID does not exist; remove ID to create a new product");
-      if (byId && bySku && byId.id !== bySku.id) throw new Error("ID and SKU refer to different products");
-      const existing = byId || bySku;
+      const prepared = await prepareProductImportRow(row);
+      const { existing, data } = prepared;
+      const key = existing?.id ?? data.sku!;
+      if (targets.has(key))
+        throw new Error(
+          "This file targets the same product more than once; keep one row per product",
+        );
+      targets.add(key);
+      previews.push({
+        row: row.rowNumber,
+        action: existing ? "Update" : "Create",
+        category: data.category + " / " + data.subcategory,
+        optionGroups: data.configuration.groups.length,
+        isActive: data.isActive ?? existing?.isActive ?? false,
+      });
+      if (dryRun) continue;
       if (existing) {
-        await updateComponent(existing.id, row.data);
+        await updateComponent(existing.id, data);
         updatedCount++;
       } else {
-        await createComponent(row.data);
+        await createComponent(data);
         createdCount++;
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to save this row";
-      errors.push({ row: row.rowNumber, name: row.data.name, error: /prisma|invocation|database/i.test(message) ? "Could not save this row; check duplicate SKU/slug or retry" : message });
+      const message =
+        error instanceof Error ? error.message : "Unable to save this row";
+      errors.push({
+        row: row.rowNumber,
+        name: row.data.name,
+        error: /prisma|invocation|database/i.test(message)
+          ? "Could not save this row; check duplicate SKU/slug or retry"
+          : message,
+      });
     }
   }
-  if (createdCount || updatedCount) await Promise.all([cacheInvalidate("http:/api/components*"), cacheInvalidate("http:/api/projects*")]);
+  if (createdCount || updatedCount)
+    await Promise.all([
+      cacheInvalidate("http:/api/components*"),
+      cacheInvalidate("http:/api/projects*"),
+    ]);
   res.status(200).json({
     success: errors.length === 0,
-    message: `Created ${createdCount}, updated ${updatedCount}, failed ${errors.length}. Successful rows have been saved.`,
-    data: { createdCount, updatedCount, errors },
+    message: dryRun
+      ? "Checked " +
+        rows.length +
+        " products. " +
+        errors.length +
+        " need correction. Nothing has been saved."
+      : "Created " +
+        createdCount +
+        ", updated " +
+        updatedCount +
+        ", failed " +
+        errors.length +
+        ". Successful rows have been saved.",
+    data: { createdCount, updatedCount, errors, previews, dryRun },
   });
 }
 
-export async function productTemplateController(_req: Request, res: Response): Promise<void> {
-  res.setHeader("Content-Type", "text/csv; charset=utf-8");
-  res.setHeader("Content-Disposition", 'attachment; filename="roboroot-product-template.csv"');
-  res.status(200).send(productTemplateCsv());
+export async function productTemplateController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  try {
+    const categoryId =
+      typeof req.query.subcategoryId === "string"
+        ? req.query.subcategoryId
+        : undefined;
+    const categories = await prisma.subcategory.findMany({
+      where: categoryId ? { id: categoryId } : {},
+      include: { category: true },
+      orderBy: [{ categoryId: "asc" }, { name: "asc" }],
+    });
+    if (!categories.length) {
+      res.status(400).json({
+        error:
+          "Create or select an existing category before downloading a template",
+      });
+      return;
+    }
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="albumo-product-template.csv"',
+    );
+    res.status(200).send(productTemplateCsv(categories));
+  } catch {
+    res.status(500).json({
+      success: false,
+      error: "Failed to generate the category template",
+    });
+  }
 }
 
-export async function bulkExportController(_req: Request, res: Response): Promise<void> {
+export async function bulkExportController(
+  _req: Request,
+  res: Response,
+): Promise<void> {
   try {
-    const products = await prisma.component.findMany({ orderBy: { name: "asc" } });
-    const rows = products.map(product => {
-      const values: Record<string, unknown> = { ...product, unitPrice: (product.unitPriceCents / 100).toFixed(2),
-        discountedPrice: product.discountedPriceCents == null ? "" : (product.discountedPriceCents / 100).toFixed(2),
-        tags: product.tags.join(","), specifications: JSON.stringify(product.specifications ?? []) };
-      return productCsvHeaders.map(key => csvCell(values[key])).join(",");
+    const products = await prisma.component.findMany({
+      orderBy: { name: "asc" },
     });
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
-    res.setHeader("Content-Disposition", 'attachment; filename="roboroot-catalog-export.csv"');
-    res.status(200).send([productCsvHeaders.join(","), ...rows].join("\r\n"));
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="albumo-catalogue-export.csv"',
+    );
+    res.status(200).send(productsToCsv(products));
   } catch {
-    res.status(500).json({ success: false, error: "Failed to export catalog" });
+    res
+      .status(500)
+      .json({ success: false, error: "Failed to export catalogue" });
   }
 }
 
@@ -73,11 +169,16 @@ export async function bulkExportController(_req: Request, res: Response): Promis
  * POST /api/admin/products/ai-generate
  * Generates product details using DeepSeek or Claude
  */
-export async function aiGenerateProductController(req: Request, res: Response): Promise<void> {
+export async function aiGenerateProductController(
+  req: Request,
+  res: Response,
+): Promise<void> {
   try {
     const { name } = req.body;
     if (!name) {
-      res.status(400).json({ success: false, error: "Product name is required" });
+      res
+        .status(400)
+        .json({ success: false, error: "Product name is required" });
       return;
     }
 
@@ -101,9 +202,11 @@ Respond ONLY with a valid, parsable JSON object. No markdown wrapping, no explan
 
     if (nvidiaApiKey) {
       // Call DeepSeek/Nvidia API
-      const baseUrl = process.env.NVIDIA_BASE_URL || "https://integrate.api.nvidia.com/v1";
-      const model = process.env.NVIDIA_CHAT_MODEL || "deepseek-ai/deepseek-v4-pro";
-      
+      const baseUrl =
+        process.env.NVIDIA_BASE_URL || "https://integrate.api.nvidia.com/v1";
+      const model =
+        process.env.NVIDIA_CHAT_MODEL || "deepseek-ai/deepseek-v4-pro";
+
       const apiResponse = await fetch(`${baseUrl}/chat/completions`, {
         method: "POST",
         headers: {
@@ -113,7 +216,10 @@ Respond ONLY with a valid, parsable JSON object. No markdown wrapping, no explan
         body: JSON.stringify({
           model,
           messages: [
-            { role: "system", content: "You are a helpful assistant that returns JSON." },
+            {
+              role: "system",
+              content: "You are a helpful assistant that returns JSON.",
+            },
             { role: "user", content: systemPrompt },
           ],
           temperature: 0.2,
@@ -125,7 +231,7 @@ Respond ONLY with a valid, parsable JSON object. No markdown wrapping, no explan
         throw new Error(`NVIDIA API returned status ${apiResponse.status}`);
       }
 
-      const json = await apiResponse.json() as any;
+      const json = (await apiResponse.json()) as any;
       responseText = json.choices?.[0]?.message?.content || "";
     } else if (anthropicApiKey) {
       // Call Anthropic API
@@ -140,9 +246,7 @@ Respond ONLY with a valid, parsable JSON object. No markdown wrapping, no explan
         body: JSON.stringify({
           model,
           max_tokens: 1000,
-          messages: [
-            { role: "user", content: systemPrompt }
-          ],
+          messages: [{ role: "user", content: systemPrompt }],
         }),
       });
 
@@ -150,7 +254,7 @@ Respond ONLY with a valid, parsable JSON object. No markdown wrapping, no explan
         throw new Error(`Anthropic API returned status ${apiResponse.status}`);
       }
 
-      const json = await apiResponse.json() as any;
+      const json = (await apiResponse.json()) as any;
       responseText = json.content?.[0]?.text || "";
     } else {
       // Fallback if no LLM configured
@@ -188,16 +292,22 @@ Respond ONLY with a valid, parsable JSON object. No markdown wrapping, no explan
     console.error("AI Generate error:", error);
     res.status(500).json({
       success: false,
-      error: error instanceof Error ? error.message : "Failed to generate product details",
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to generate product details",
     });
   }
 }
 
 /**
  * POST /api/admin/products/media/bulk-upload
- * Uploads multiple images to Azure Blob Storage and saves them in the Media Library
+ * Uploads multiple images to Cloudflare R2 and saves them in the Media Library
  */
-export async function bulkUploadMediaController(req: Request, res: Response): Promise<void> {
+export async function bulkUploadMediaController(
+  req: Request,
+  res: Response,
+): Promise<void> {
   try {
     const files = req.files as Express.Multer.File[] | undefined;
     if (!files || files.length === 0) {
@@ -210,11 +320,11 @@ export async function bulkUploadMediaController(req: Request, res: Response): Pr
 
     for (const file of files) {
       try {
-        const result = await uploadFileToAzure(
+        const result = await uploadFile(
           file.buffer,
           file.originalname,
           file.mimetype,
-          FileType.COMPONENT_IMAGE
+          FileType.COMPONENT_IMAGE,
         );
 
         if ("error" in result) {
@@ -246,7 +356,10 @@ export async function bulkUploadMediaController(req: Request, res: Response): Pr
     });
   } catch (error) {
     console.error("Bulk upload error:", error);
-    res.status(500).json({ success: false, error: "Internal server error during bulk upload" });
+    res.status(500).json({
+      success: false,
+      error: "Internal server error during bulk upload",
+    });
   }
 }
 
@@ -254,7 +367,10 @@ export async function bulkUploadMediaController(req: Request, res: Response): Pr
  * GET /api/admin/products/media
  * Fetches all items in the Media Library
  */
-export async function getMediaLibraryController(req: Request, res: Response): Promise<void> {
+export async function getMediaLibraryController(
+  req: Request,
+  res: Response,
+): Promise<void> {
   try {
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 24));
@@ -281,7 +397,9 @@ export async function getMediaLibraryController(req: Request, res: Response): Pr
     });
   } catch (error) {
     console.error("Fetch media library error:", error);
-    res.status(500).json({ success: false, error: "Failed to fetch media library" });
+    res
+      .status(500)
+      .json({ success: false, error: "Failed to fetch media library" });
   }
 }
 
@@ -289,7 +407,10 @@ export async function getMediaLibraryController(req: Request, res: Response): Pr
  * DELETE /api/admin/products/media/:id
  * Deletes an item from the Media Library list
  */
-export async function deleteMediaLibraryController(req: Request, res: Response): Promise<void> {
+export async function deleteMediaLibraryController(
+  req: Request,
+  res: Response,
+): Promise<void> {
   try {
     const { id } = req.params;
     if (!id) {
@@ -297,10 +418,13 @@ export async function deleteMediaLibraryController(req: Request, res: Response):
       return;
     }
     await prisma.mediaLibrary.delete({ where: { id } });
-    res.status(200).json({ success: true, message: "Media deleted from library" });
+    res
+      .status(200)
+      .json({ success: true, message: "Media deleted from library" });
   } catch (error) {
     console.error("Delete media error:", error);
-    res.status(500).json({ success: false, error: "Failed to delete media item" });
+    res
+      .status(500)
+      .json({ success: false, error: "Failed to delete media item" });
   }
 }
-

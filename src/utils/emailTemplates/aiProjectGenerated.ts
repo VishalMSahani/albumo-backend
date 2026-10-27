@@ -40,7 +40,7 @@ export function aiProjectGeneratedTemplate(data: {
     ${componentsHtml}
 
     <p class="text-center">
-      <a href="https://roboroot.in/projects/${data.project.projectId}" class="button">View Full Project Details</a>
+      <a href="https://albumo.in/projects/${data.project.projectId}" class="button">View Full Project Details</a>
     </p>
 
     <h2>What's Next?</h2>
@@ -56,8 +56,8 @@ export function aiProjectGeneratedTemplate(data: {
     </p>
 
     <p class="text-center">
-      <a href="https://roboroot.in/projects/${data.project.projectId}/components">Shop Components</a> | 
-      <a href="https://roboroot.in/mentors">Find a Mentor</a>
+      <a href="https://albumo.in/projects/${data.project.projectId}/components">Shop Components</a> |
+      <a href="https://albumo.in/mentors">Find a Mentor</a>
     </p>
 
     <p>
@@ -67,7 +67,7 @@ export function aiProjectGeneratedTemplate(data: {
 
     <p>
       Happy Building! 🔧⚡<br>
-      The RoboRoot Team
+      The Albumo Team
     </p>
   `;
 
@@ -93,7 +93,7 @@ ${data.project.componentsNeeded.map((c) => `• ${c}`).join("\n")}`
     : ""
 }
 
-View full project: https://roboroot.in/projects/${data.project.projectId}
+View full project: https://albumo.in/projects/${data.project.projectId}
 
 What's Next?
 📖 Review the project details and instructions
@@ -101,12 +101,12 @@ What's Next?
 🔧 Start building following the guide
 👨‍🏫 Book a mentor session if you need help
 
-Shop Components: https://roboroot.in/projects/${data.project.projectId}/components
-Find a Mentor: https://roboroot.in/mentors
+Shop Components: https://albumo.in/projects/${data.project.projectId}/components
+Find a Mentor: https://albumo.in/mentors
 
 Questions? Contact us at projects@roboroot.in
 
 Happy Building! 🔧⚡
-The RoboRoot Team`,
+The Albumo Team`,
   };
 }

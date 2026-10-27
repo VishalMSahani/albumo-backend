@@ -4,9 +4,10 @@ import { readFileSync } from 'node:fs';
 export function checkDeployment(env) {
   const errors = [];
   if (env.NODE_ENV !== 'production') errors.push('NODE_ENV must be production');
-  for (const key of ['DATABASE_URL', 'REDIS_URL', 'AZURE_STORAGE_CONNECTION_STRING']) {
+  for (const key of ['DATABASE_URL', 'REDIS_URL', 'R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET_NAME', 'R2_PRIVATE_BUCKET_NAME', 'R2_PUBLIC_DOMAIN']) {
     if (!env[key]?.trim()) errors.push(`${key} is required`);
   }
+  if (env.R2_BUCKET_NAME && env.R2_BUCKET_NAME === env.R2_PRIVATE_BUCKET_NAME) errors.push("R2 private and public buckets must be different");
   const resendConfigured = Boolean(env.RESEND_API_KEY?.trim());
   const smtpValues = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'].map(key => env[key]?.trim());
   const smtpConfigured = smtpValues.every(Boolean);

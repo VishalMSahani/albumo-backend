@@ -3,7 +3,11 @@
  * Type definitions for component management
  */
 
+import type { ProductConfiguration } from "./catalogue.js";
+
 export interface CreateComponentRequest {
+  subcategoryId?: string;
+  configuration?: ProductConfiguration;
   name: string;
   slug?: string;
   sku?: string;
@@ -29,6 +33,8 @@ export interface CreateComponentRequest {
 }
 
 export interface UpdateComponentRequest {
+  subcategoryId?: string;
+  configuration?: ProductConfiguration;
   name?: string;
   slug?: string; // Allow manual slug override from admin
   sku?: string;
@@ -72,6 +78,8 @@ export interface ComponentFilters {
 }
 
 export interface ComponentResponse {
+  subcategoryId: string | null;
+  configuration: ProductConfiguration | null;
   id: string;
   slug: string;
   name: string;

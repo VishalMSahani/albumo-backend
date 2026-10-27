@@ -6,8 +6,9 @@
  */
 
 import type { Request, Response, NextFunction } from "express";
+import { isCatalogueImage } from "../validators/catalogue-images.js";
 import { prisma } from "../../../lib/prisma.js";
-import { uploadFileToAzure, FileType } from "../../../services/azure-storage.service.js";
+import { uploadFile, FileType } from "../../../services/storage.service.js";
 import { cacheInvalidate } from "../../../lib/redis.js";
 import { MediaType } from "../../../generated/prisma/client.js";
 
@@ -21,7 +22,7 @@ async function bustCache() {
 export async function getProductMediaHandler(
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> {
   try {
     const { id } = req.params;
@@ -39,14 +40,19 @@ export async function getProductMediaHandler(
 export async function addProductMediaHandler(
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> {
   try {
     const { id } = req.params;
 
     const existing = await prisma.productMedia.count({ where: { componentId: id! } });
     if (existing >= MAX_MEDIA) {
-      res.status(400).json({ success: false, error: `Maximum ${MAX_MEDIA} media items allowed per product.` });
+      res
+        .status(400)
+        .json({
+          success: false,
+          error: `Maximum ${MAX_MEDIA} media items allowed per product.`,
+        });
       return;
     }
 
@@ -58,17 +64,22 @@ export async function addProductMediaHandler(
 
     const isImage = ["image/jpeg", "image/png", "image/webp"].includes(file.mimetype);
     if (!isImage) {
-      res.status(400).json({ success: false, error: "Only JPEG, PNG, or WebP images can be uploaded. Add videos via URL." });
+      res
+        .status(400)
+        .json({
+          success: false,
+          error: "Only JPEG, PNG, or WebP images can be uploaded. Add videos via URL.",
+        });
       return;
     }
 
     const nextOrder = await prisma.productMedia.count({ where: { componentId: id! } });
 
-    const uploadResult = await uploadFileToAzure(
+    const uploadResult = await uploadFile(
       file.buffer,
       file.originalname,
       file.mimetype,
-      FileType.COMPONENT_IMAGE
+      FileType.COMPONENT_IMAGE,
     );
 
     if ("error" in uploadResult) {
@@ -96,7 +107,7 @@ export async function addProductMediaHandler(
 export async function addProductMediaByUrlHandler(
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> {
   try {
     const { id } = req.params;
@@ -108,10 +119,16 @@ export async function addProductMediaByUrlHandler(
     }
 
     const mediaType: MediaType = type === "VIDEO" ? MediaType.VIDEO : MediaType.IMAGE;
+    if (mediaType === MediaType.IMAGE && !isCatalogueImage(url)) {
+      res.status(400).json({ success: false, error: "Use an Albumo CDN image URL." });
+      return;
+    }
 
     const existing = await prisma.productMedia.count({ where: { componentId: id! } });
     if (existing >= MAX_MEDIA) {
-      res.status(400).json({ success: false, error: `Maximum ${MAX_MEDIA} media items allowed.` });
+      res
+        .status(400)
+        .json({ success: false, error: `Maximum ${MAX_MEDIA} media items allowed.` });
       return;
     }
 
@@ -120,7 +137,13 @@ export async function addProductMediaByUrlHandler(
         where: { componentId: id!, type: MediaType.VIDEO },
       });
       if (existingVideo) {
-        res.status(400).json({ success: false, error: "Only one video per product is allowed. Delete the existing video first." });
+        res
+          .status(400)
+          .json({
+            success: false,
+            error:
+              "Only one video per product is allowed. Delete the existing video first.",
+          });
         return;
       }
     }
@@ -140,12 +163,14 @@ export async function addProductMediaByUrlHandler(
 export async function deleteProductMediaHandler(
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> {
   try {
     const { id, mediaId } = req.params;
 
-    const media = await prisma.productMedia.findFirst({ where: { id: mediaId!, componentId: id! } });
+    const media = await prisma.productMedia.findFirst({
+      where: { id: mediaId!, componentId: id! },
+    });
     if (!media) {
       res.status(404).json({ success: false, error: "Media not found." });
       return;
@@ -163,14 +188,16 @@ export async function deleteProductMediaHandler(
 export async function reorderProductMediaHandler(
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> {
   try {
     const { id } = req.params;
     const { order } = req.body as { order?: string[] };
 
     if (!Array.isArray(order)) {
-      res.status(400).json({ success: false, error: "order must be an array of media IDs." });
+      res
+        .status(400)
+        .json({ success: false, error: "order must be an array of media IDs." });
       return;
     }
 
@@ -179,8 +206,8 @@ export async function reorderProductMediaHandler(
         prisma.productMedia.updateMany({
           where: { id: mediaId, componentId: id! },
           data: { sortOrder: index },
-        })
-      )
+        }),
+      ),
     );
 
     void bustCache();

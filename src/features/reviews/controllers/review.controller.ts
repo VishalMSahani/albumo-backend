@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import * as reviewService from "../services/review.service.js";
-import { uploadFileToAzure, FileType } from "../../../services/azure-storage.service.js";
+import { uploadFile, FileType } from "../../../services/storage.service.js";
 
 export async function createReviewHandler(req: Request, res: Response): Promise<void> {
   const userId = req.user!.userId;
@@ -76,7 +76,7 @@ export async function uploadReviewImageHandler(
       return;
     }
 
-    const result = await uploadFileToAzure(
+    const result = await uploadFile(
       file.buffer,
       file.originalname,
       file.mimetype,

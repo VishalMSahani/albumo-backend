@@ -1,3 +1,4 @@
+import { queuePrefix } from "../lib/queue-config.js";
 import { Worker, type Job } from "bullmq";
 import { createBullMQConnection } from "../lib/redis.js";
 import { prisma } from "../lib/prisma.js";
@@ -98,6 +99,7 @@ export function startTrackingPollWorker(): Worker<TrackingPollJobData> | null {
 
   worker = new Worker<TrackingPollJobData>("tracking-poll", processTrackingJob, {
     connection: createBullMQConnection(),
+    prefix: queuePrefix,
     concurrency: 3,
   });
 

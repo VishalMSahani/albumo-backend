@@ -1,12 +1,13 @@
 import type { Request, Response } from "express";
 import {
   queueEmailNotification,
+  queueRawEmail,
   processPendingEmails,
   getEmailStats,
   cleanupOldEmails,
 } from "../services/email-notification.service.js";
 import { getEmailTemplate } from "../utils/email-templates.js";
-import { sendEmail, testEmailConfiguration } from "../services/email.service.js";
+import { testEmailConfiguration } from "../services/email.service.js";
 import { EmailEventType } from "../generated/prisma/client.js";
 import { ValidationError } from "../utils/types.js";
 import type { JWTPayload } from "../utils/types.js";
@@ -33,7 +34,7 @@ export async function previewEmailTemplate(req: AuthRequest, res: Response) {
 
   // Return HTML for preview
   res.setHeader("Content-Type", "text/html");
-  res.send(template);
+  res.send(template.html);
 }
 
 /**
@@ -55,7 +56,7 @@ export async function sendTestEmail(req: AuthRequest, res: Response) {
     email,
     eventType as EmailEventType,
     metadata || {},
-    req.user?.userId // Associate with current user if available
+    req.user?.userId, // Associate with current user if available
   );
 
   res.json({
@@ -129,28 +130,13 @@ export async function sendCustomEmail(req: AuthRequest, res: Response) {
     throw new ValidationError("Either htmlBody or textBody is required");
   }
 
-  const result = await sendEmail(
-    to,
+  const result = await queueRawEmail({
+    email: to,
+    eventType: EmailEventType.CUSTOM_EMAIL,
     subject,
-    htmlBody,
-    textBody
-  );
-
-  const response: {
-    message: string;
-    messageId?: string;
-    previewUrl?: string;
-  } = {
-    message: "Email sent successfully",
-  };
-
-  if (result.messageId) {
-    response.messageId = result.messageId;
-  }
-
-  if (result.previewUrl) {
-    response.previewUrl = result.previewUrl;
-  }
-
-  res.json(response);
+    html: htmlBody || "",
+    text: textBody || "",
+    channel: "TRANSACTIONAL",
+  });
+  res.status(202).json({ message: "Email queued", notificationId: result.id });
 }

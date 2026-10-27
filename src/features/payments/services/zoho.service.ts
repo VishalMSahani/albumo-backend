@@ -178,24 +178,29 @@ async function queueOrderPaidEmail(orderId: string, userId: string, totalAmountC
 }
 
 async function markZohoPaymentSuccessful(input: {
+  amount: number;
+  currency: string;
   orderId?: string | undefined;
   paymentSessionId: string;
   paymentId?: string | undefined;
   rawPayload: Prisma.InputJsonValue;
 }): Promise<void> {
   const result = await prisma.$transaction(async (tx) => {
-    const payment = await tx.payment.findFirst({
+    let payment = await tx.payment.findFirst({
       where: {
         gateway: "ZOHO",
-        OR: [
-          { gatewayOrderId: input.paymentSessionId },
-          ...(input.orderId ? [{ orderId: input.orderId }] : []),
-        ],
+        gatewayOrderId: input.paymentSessionId,
+        ...(input.orderId ? { orderId: input.orderId } : {}),
       },
       orderBy: { createdAt: "desc" },
     });
 
+    if (!payment) throw Object.assign(new Error("Unknown payment session"), { statusCode: 400 });
+    await tx.$queryRaw`SELECT "id" FROM "Order" WHERE "id" = ${payment.orderId} FOR UPDATE`;
+    payment = await tx.payment.findUnique({ where: { id: payment.id } });
     if (!payment || payment.status === "SUCCESS") return null;
+    if (!Number.isFinite(input.amount) || Math.round(input.amount * 100) !== payment.amountCents || input.currency !== 'INR')
+      throw Object.assign(new Error("Payment amount or currency mismatch"), { statusCode: 400 });
 
     const paymentUpdateData: Prisma.PaymentUpdateInput = {
       status: "SUCCESS",
@@ -216,7 +221,12 @@ async function markZohoPaymentSuccessful(input: {
 
     if (!order) return null;
 
-    if (order.status !== "PAID") {
+    if (order.status === "CANCELLED" || order.status === "REFUNDED") {
+      await tx.order.update({ where: { id: order.id }, data: { status: 'REFUND_INITIATED', notes: 'Payment received after cancellation; refund review required.' } });
+      return null;
+    }
+    if (order.status !== 'PENDING_PAYMENT') return null;
+    if (order.status === "PENDING_PAYMENT") {
       await tx.order.update({
         where: { id: order.id },
         data: { status: "PAID" },
@@ -267,10 +277,8 @@ async function markZohoPaymentFailed(input: {
     where: {
       gateway: "ZOHO",
       status: "CREATED",
-      OR: [
-        { gatewayOrderId: input.paymentSessionId },
-        ...(input.orderId ? [{ orderId: input.orderId }] : []),
-      ],
+      gatewayOrderId: input.paymentSessionId,
+      ...(input.orderId ? { orderId: input.orderId } : {}),
     },
     data: paymentUpdateData,
   });
@@ -281,11 +289,6 @@ export async function initiatePayment(
   userId: string,
   idempotencyKey?: string,
 ): Promise<ZohoInitiatePaymentResult> {
-  if (idempotencyKey && redis) {
-    const cacheKey = `idempotency:payment:zoho:${userId}:${idempotencyKey}`;
-    const cached = await redis.get(cacheKey);
-    if (cached) return JSON.parse(cached) as ZohoInitiatePaymentResult;
-  }
 
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -330,7 +333,7 @@ export async function initiatePayment(
   const token = await getZohoAccessToken();
   const checkoutTtlSeconds = Number(process.env.ZOHO_PAYMENTS_SESSION_TTL_SECONDS || 900);
   const customerPhone = order.address.phone.replace(/\D/g, "").slice(-10);
-  const customerName = order.address.name || order.user.name || "RoboRoot Customer";
+  const customerName = order.address.name || order.user.name || "Albumo Customer";
 
   const response = await fetch(`${apiBaseUrl}/paymentsessions?account_id=${encodeURIComponent(accountId)}`, {
     method: "POST",
@@ -342,7 +345,7 @@ export async function initiatePayment(
       amount: Number((order.totalAmountCents / 100).toFixed(2)),
       currency: "INR",
       expires_in: checkoutTtlSeconds,
-      description: `Payment for RoboRoot order ${order.id}`,
+      description: `Payment for Albumo order ${order.id}`,
       reference_number: order.id,
       invoice_number: order.id,
       max_retry_count: 3,
@@ -353,7 +356,7 @@ export async function initiatePayment(
           email: order.user.email,
           phone_country_code: "IN",
           phone: customerPhone,
-          description: `RoboRoot order ${order.id}`,
+          description: `Albumo order ${order.id}`,
           success_url: `${getBackendPublicUrl()}/api/payments/zoho/return/${order.id}/success`,
           failure_url: `${getBackendPublicUrl()}/api/payments/zoho/return/${order.id}/failure`,
           udf1: order.id,
@@ -379,26 +382,15 @@ export async function initiatePayment(
     zohoResponse: data,
   };
 
-  if (existingPayment) {
-    await prisma.payment.update({
-      where: { id: existingPayment.id },
-      data: {
-        gatewayOrderId: session.payments_session_id,
-        rawPayload: payload,
-      },
-    });
-  } else {
-    await prisma.payment.create({
-      data: {
-        orderId,
-        gateway: "ZOHO",
-        gatewayOrderId: session.payments_session_id,
-        amountCents: order.totalAmountCents,
-        status: "CREATED",
-        rawPayload: payload,
-      },
-    });
-  }
+  // Preserve older session IDs so a delayed signed callback can still be reconciled.
+  // Claim an unused placeholder atomically; concurrent initiations get separate records.
+  const claimed = existingPayment && !existingPayment.gatewayOrderId
+    ? await prisma.payment.updateMany({ where: { id: existingPayment.id, gatewayOrderId: null, status: 'CREATED' }, data: { gatewayOrderId: session.payments_session_id, rawPayload: payload } })
+    : { count: 0 };
+  if (!claimed.count) await prisma.payment.create({ data: {
+    orderId, gateway: 'ZOHO', gatewayOrderId: session.payments_session_id,
+    amountCents: order.totalAmountCents, status: 'CREATED', rawPayload: payload,
+  } });
 
   const result: ZohoInitiatePaymentResult = {
     gateway: "ZOHO",
@@ -409,7 +401,7 @@ export async function initiatePayment(
   };
 
   if (idempotencyKey && redis) {
-    const cacheKey = `idempotency:payment:zoho:${userId}:${idempotencyKey}`;
+    const cacheKey = `idempotency:payment:zoho:${userId}:${orderId}:${idempotencyKey}`;
     await redis.set(cacheKey, JSON.stringify(result), "EX", 30 * 60);
   }
 
@@ -460,7 +452,7 @@ export async function handleHostedCheckoutReturn(
 
   if (paymentSessionStatus === "succeeded" || paymentStatus === "succeeded" || paymentStatus === "success") {
     await markZohoPaymentSuccessful({
-      orderId,
+      orderId, amount: Number(getStringQueryValue(query, 'amount')), currency: 'INR',
       paymentSessionId,
       paymentId: paymentId || undefined,
       rawPayload: { source: "zoho_return", query: queryPayload },
@@ -503,14 +495,9 @@ export async function handleWebhook(rawBody: Buffer, signatureHeader: string): P
   const paymentSessionId = payment.payments_session_id || payment.payment_session_id;
   if (!paymentSessionId) return;
 
-  const idempotencyKey = `webhook:zoho:${event.event_id || event.event_type}:${payment.payment_id || paymentSessionId}`;
-  if (redis) {
-    const already = await redis.set(idempotencyKey, "1", "EX", 86400, "NX");
-    if (!already) return;
-  }
-
   if (event.event_type === "payment.succeeded") {
     await markZohoPaymentSuccessful({
+      amount: Number(payment.amount), currency: payment.currency || '',
       paymentSessionId,
       paymentId: payment.payment_id || undefined,
       rawPayload: { source: "zoho_webhook", event },

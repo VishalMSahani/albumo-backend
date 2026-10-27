@@ -1,10 +1,10 @@
 /**
  * Component Upload Controller
- * Handles component creation with image uploads to Azure Blob Storage
+ * Handles component creation with image uploads to Cloudflare R2
  */
 
 import type { Request, Response, NextFunction } from 'express';
-import { uploadFileToAzure, FileType, UPLOAD_LIMITS } from '../../../services/azure-storage.service.js';
+import { uploadFile, FileType, UPLOAD_LIMITS } from '../../../services/storage.service.js';
 import * as componentService from '../services/component.service.js';
 import { productDetailsSchema, parseProductDetails } from '../validators/product-details.js';
 
@@ -84,7 +84,7 @@ export async function handleCreateComponentWithUploads(
     // Upload thumbnail if provided
     let thumbnailUrl: string | null = null;
     if (thumbnailFile) {
-      const thumbnailResult = await uploadFileToAzure(
+      const thumbnailResult = await uploadFile(
         thumbnailFile.buffer,
         thumbnailFile.originalname,
         thumbnailFile.mimetype,
@@ -106,7 +106,7 @@ export async function handleCreateComponentWithUploads(
     const imageUrls: string[] = [];
     if (imageFiles.length > 0) {
       for (const imageFile of imageFiles) {
-        const imageResult = await uploadFileToAzure(
+        const imageResult = await uploadFile(
           imageFile.buffer,
           imageFile.originalname,
           imageFile.mimetype,
@@ -214,7 +214,7 @@ export async function handleSingleImageUpload(
       return;
     }
 
-    const result = await uploadFileToAzure(
+    const result = await uploadFile(
       file.buffer,
       file.originalname,
       file.mimetype,

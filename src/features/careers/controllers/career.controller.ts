@@ -1,12 +1,22 @@
 import { type Request, type Response } from "express";
 import { prisma } from "../../../lib/prisma.js";
-import { sendEmail } from "../../../services/email.service.js";
-import { createCareerApplicationSchema, updateCareerApplicationSchema } from "../validators/career.validator.js";
+import {
+  queueAdminNotice,
+  queueRawEmail,
+} from "../../../services/email-notification.service.js";
+import { albumoMessage } from "../../../utils/emailTemplates/albumo.js";
+import {
+  createCareerApplicationSchema,
+  updateCareerApplicationSchema,
+} from "../validators/career.validator.js";
 
 /**
  * Submit a new career application
  */
-export async function createCareerApplication(req: Request, res: Response): Promise<void> {
+export async function createCareerApplication(
+  req: Request,
+  res: Response,
+): Promise<void> {
   try {
     // 1. Validate request body
     const bodyValidation = createCareerApplicationSchema.safeParse(req.body);
@@ -18,7 +28,8 @@ export async function createCareerApplication(req: Request, res: Response): Prom
       return;
     }
 
-    const { name, email, phone, portfolioUrl, coverLetter } = bodyValidation.data;
+    const { name, email, phone, portfolioUrl, coverLetter } =
+      bodyValidation.data;
 
     // 2. Save application to database
     const application = await prisma.careerApplication.create({
@@ -32,105 +43,38 @@ export async function createCareerApplication(req: Request, res: Response): Prom
       },
     });
 
-    // 3. Send Notification Email to Admin
-    const adminEmail = process.env.ADMIN_ALERT_EMAIL || process.env.SMTP_USER || process.env.FROM_EMAIL || "hiring@roboroot.in";
-    const adminSubject = `[Career Application] New Speculative Application from ${name}`;
-
-    const adminHtml = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e4e4e7; border-radius: 8px;">
-        <h2 style="color: #222; border-bottom: 2px solid #1CA2D1; padding-bottom: 10px; margin-top: 0;">New Career Application Received</h2>
-        <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
-          <tr>
-            <td style="padding: 8px 0; font-weight: bold; width: 140px; color: #71717a;">Full Name:</td>
-            <td style="padding: 8px 0; color: #09090b; font-weight: bold;">${name}</td>
-          </tr>
-          <tr>
-            <td style="padding: 8px 0; font-weight: bold; color: #71717a;">Email:</td>
-            <td style="padding: 8px 0; color: #09090b;"><a href="mailto:${email}" style="color: #1CA2D1;">${email}</a></td>
-          </tr>
-          <tr>
-            <td style="padding: 8px 0; font-weight: bold; color: #71717a;">Phone:</td>
-            <td style="padding: 8px 0; color: #09090b; font-weight: bold;">${phone}</td>
-          </tr>
-          <tr>
-            <td style="padding: 8px 0; font-weight: bold; color: #71717a;">Portfolio / Links:</td>
-            <td style="padding: 8px 0; color: #09090b;"><a href="${portfolioUrl}" target="_blank" style="color: #1CA2D1; font-weight: bold;">${portfolioUrl}</a></td>
-          </tr>
-        </table>
-        
-        <div style="margin-top: 20px; padding: 15px; background: #f4f4f5; border-radius: 6px;">
-          <h4 style="margin-top: 0; margin-bottom: 8px; color: #222;">Cover Letter & Pitch Summary:</h4>
-          <p style="margin: 0; color: #27272a; white-space: pre-wrap; font-size: 14px; line-height: 1.5;">${coverLetter}</p>
-        </div>
-        
-        <p style="font-size: 12px; color: #a1a1aa; margin-top: 30px; text-align: center; border-top: 1px solid #e4e4e7; padding-top: 15px;">
-          Submitted via roboroot.in. Application ID: ${application.id}
-        </p>
-      </div>
-    `;
-
-    const adminText = `
-      New Career Application Received
-      
-      Full Name: ${name}
-      Email: ${email}
-      Phone: ${phone}
-      Portfolio / GitHub / LinkedIn: ${portfolioUrl}
-      
-      Cover Letter & Pitch:
-      ${coverLetter}
-      
-      Application ID: ${application.id}
-    `;
-
-    // 4. Candidate Email Templates
-    const candidateSubject = `We've received your application to join RoboRoot`;
-
-    const candidateHtml = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e4e4e7; border-radius: 8px;">
-        <h2 style="color: #222; margin-top: 0;">Hi ${name},</h2>
-        <p style="font-size: 14px; line-height: 1.6; color: #3f3f46;">
-          Thank you for your interest in joining the <strong>RoboRoot</strong> engineering and sourcing labs!
-        </p>
-        <p style="font-size: 14px; line-height: 1.6; color: #3f3f46;">
-          We have successfully received your application. Our engineering team and lab builders review incoming profiles regularly. If your skills match our current hardware or software projects, we'll reach out to schedule an interview.
-        </p>
-        
-        <div style="margin-top: 25px; padding: 15px; background: #f8fafc; border-left: 4px solid #1CA2D1; border-radius: 4px;">
-          <p style="margin: 0; font-size: 13px; color: #475569;">
-            <strong>Application Reference:</strong> ${application.id}
-          </p>
-        </div>
-
-        <p style="font-size: 14px; line-height: 1.6; color: #3f3f46; margin-top: 30px;">
-          Best regards,<br />
-          <strong>RoboRoot Sourcing & Engineering Team</strong><br />
-          <a href="https://roboroot.in" style="color: #1CA2D1;">roboroot.in</a>
-        </p>
-      </div>
-    `;
-
-    const candidateText = `
-      Hi ${name},
-      
-      Thank you for your interest in joining the RoboRoot engineering and sourcing labs!
-      We have successfully received your application. Our engineering team reviews incoming profiles regularly and will reach out if your background fits our current lab directions.
-      
-      Application Reference: ${application.id}
-      
-      Best regards,
-      RoboRoot Engineering Team
-      roboroot.in
-    `;
-
-    // Dispatch emails to Admin and Candidate
-    sendEmail(adminEmail, adminSubject, adminHtml, adminText)
-      .then((res) => console.log(`📧 Admin notification email sent for application ${application.id}:`, res.messageId || res))
-      .catch((err) => console.error("Failed to send career application admin email:", err));
-
-    sendEmail(email, candidateSubject, candidateHtml, candidateText)
-      .then((res) => console.log(`📧 Candidate confirmation email sent to ${email}:`, res.messageId || res))
-      .catch((err) => console.error("Failed to send candidate confirmation email:", err));
+    // Persist acknowledgements in the same delivery history as other Albumo emails.
+    const acknowledgement = albumoMessage(
+      "We've received your application",
+      "Hi " +
+        name +
+        ",\n\nThank you for your interest in Albumo. Our team will review your application and get in touch if there is a suitable opportunity.",
+    );
+    await Promise.all([
+      queueAdminNotice(
+        "New Albumo career application",
+        name +
+          "\n" +
+          email +
+          "\n" +
+          phone +
+          "\nPortfolio: " +
+          portfolioUrl +
+          "\n\n" +
+          coverLetter,
+        "career-admin:" + application.id,
+      ),
+      queueRawEmail({
+        email,
+        eventType: "CUSTOM_EMAIL",
+        subject: acknowledgement.subject,
+        html: acknowledgement.html,
+        text: acknowledgement.text || "",
+        dedupeKey: "career-customer:" + application.id,
+      }),
+    ]).catch(() =>
+      console.error("[Careers] Could not queue application notifications"),
+    );
 
     res.status(201).json({
       success: true,
@@ -149,7 +93,10 @@ export async function createCareerApplication(req: Request, res: Response): Prom
 /**
  * Get all career applications (Admin only)
  */
-export async function getCareerApplications(req: Request, res: Response): Promise<void> {
+export async function getCareerApplications(
+  req: Request,
+  res: Response,
+): Promise<void> {
   try {
     if (req.user?.role !== "ADMIN" && req.user?.role !== "SUPER_ADMIN") {
       res.status(403).json({
@@ -190,7 +137,10 @@ export async function getCareerApplications(req: Request, res: Response): Promis
 /**
  * Update career application status and admin notes (Admin only)
  */
-export async function updateCareerApplicationStatus(req: Request, res: Response): Promise<void> {
+export async function updateCareerApplicationStatus(
+  req: Request,
+  res: Response,
+): Promise<void> {
   try {
     if (req.user?.role !== "ADMIN" && req.user?.role !== "SUPER_ADMIN") {
       res.status(403).json({

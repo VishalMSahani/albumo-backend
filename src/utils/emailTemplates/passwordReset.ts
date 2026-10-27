@@ -37,12 +37,12 @@ export function passwordResetTemplate(data: {
 
     <p>
       Best regards,<br>
-      The RoboRoot Team
+      The Albumo Team
     </p>
   `;
 
   return {
-    subject: "Reset Your RoboRoot Password",
+    subject: "Reset Your Albumo Password",
     html: wrapTemplate(content),
     text: `Reset Your Password 🔐
 
@@ -59,6 +59,6 @@ Reset Link: ${data.resetLink}
 For security reasons, never share your password or this reset link with anyone.
 
 Best regards,
-The RoboRoot Team`,
+The Albumo Team`,
   };
 }

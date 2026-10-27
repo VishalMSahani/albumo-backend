@@ -1,3 +1,5 @@
+import type { ProductConfiguration } from "../../components/types/catalogue.js";
+
 export interface CreateCategoryRequest {
   name: string;
   description?: string;
@@ -13,6 +15,7 @@ export interface UpdateCategoryRequest {
 }
 
 export interface CreateSubcategoryRequest {
+  configuration?: ProductConfiguration;
   categoryId: string;
   name: string;
   description?: string;
@@ -21,6 +24,7 @@ export interface CreateSubcategoryRequest {
 }
 
 export interface UpdateSubcategoryRequest {
+  configuration?: ProductConfiguration;
   name?: string;
   description?: string;
   imageUrl?: string;

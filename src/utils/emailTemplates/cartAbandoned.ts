@@ -21,7 +21,7 @@ interface CartAbandonedData {
 }
 
 export function cartAbandonedTemplate(data: CartAbandonedData): EmailTemplate {
-  const frontendUrl = process.env.FRONTEND_URL || "https://roboroot.in";
+  const frontendUrl = process.env.FRONTEND_URL || "https://albumo.in";
   const cartUrl = data.cart.cartUrl || `${frontendUrl}/cart`;
 
   const itemsHtml = data.cart.items
@@ -46,7 +46,7 @@ export function cartAbandonedTemplate(data: CartAbandonedData): EmailTemplate {
         <strong style="color: #333;">₹${(item.price * item.quantity).toLocaleString("en-IN")}</strong>
       </td>
     </tr>
-  `
+  `,
     )
     .join("");
 
@@ -101,12 +101,12 @@ export function cartAbandonedTemplate(data: CartAbandonedData): EmailTemplate {
 
     <p style="color: #999; font-size: 13px;">
       If you have any questions about these products, our team is here to help at
-      <a href="mailto:support@roboroot.in" style="color: #667eea;">support@roboroot.in</a>
+      <a href="mailto:alert@albumo.in" style="color: #667eea;">alert@albumo.in</a>
     </p>
 
     <p>
       Happy building! 🚀<br />
-      The RoboRoot Team
+      The Albumo Team
     </p>
   `;
 
@@ -126,7 +126,7 @@ Your Cart:
 ${data.cart.items
   .map(
     (item) =>
-      `• ${item.name} — Qty: ${item.quantity} — ₹${(item.price * item.quantity).toLocaleString("en-IN")}`
+      `• ${item.name} — Qty: ${item.quantity} — ₹${(item.price * item.quantity).toLocaleString("en-IN")}`,
   )
   .join("\n")}
 
@@ -139,9 +139,9 @@ Why order now?
 • Free shipping on orders above ₹999
 • Secure checkout with Razorpay
 
-Questions? Contact us at support@roboroot.in
+Questions? Contact us at alert@albumo.in
 
 Happy building! 🚀
-The RoboRoot Team`,
+The Albumo Team`,
   };
 }
